@@ -35,3 +35,34 @@ elements of the set: $\{\{1,\ldots,k\}\}$.
 ${\mathcal M}_{k,k}$ contains $k$ partitions with one element each:  
 
 $\{\{1\},\{2\}, \ldots, \{k\}\}$.
+
+### Implementation
+
+####
+
+1. ${\mathcal M}_{k,i}$ is obtained by ``Combinatorics.partitions(k,
+   i)``
+2. $\prod_{m=1}^i\left[h_{x^{|c_m|}}\right]^{\beta_m}_{\alpha(c_m)}$ 
+   compute Kronecker product in a loop for
+   ```math
+   K = \left[h_{x^{|c_1|}}\right]\otimes \left[h_{x^{|c_2|}}\right]\otimes
+  \ldots\otimes \left[h_{x^{|c_i|}}\right]$
+  ```
+3. ``reshape()`` the resulting matrix in a multidimensional array
+4. $\sum_{c \in{\mathcal
+M}_{k,i}}\prod_{m=1}^i\left[h_{x^{|c_m|}}\right]^{\beta_m}_{\alpha(c_m)}$
+: sum all the permutations of the matrix with ``PermutedDimsArray``
+5. $\sum_{i=1}^k\left[g_{y^i}\right]^\gamma_{\beta_1\ldots\beta_i}\sum_{c \in{\mathcal
+M}_{k,i}}\prod_{m=1}^i\left[h_{x^{|c_m|}}\right]^{\beta_m}_{\alpha(c_m)}$:
+redo steps 2-4 for every $i=1,\ldots, k$ and multiply by
+$\left[g_{y^i}\right]^\gamma_{\beta_1\ldots\beta_i}$.
+
+### Tests
+
+Compute the third order partial derivatives for 
+```math
+y = h(x) = \left[\begin{array}{c} x_1^3 +3x_2 \\ -x_2^3 + 2 x_3^2 \\ x_3^3
+\end{array}\right]\\
+g(y) = \left[\begin{array}{c} y_1^3 + y \\ y_2^3 + 2y_2^2 + 2 y \\ y_3^3 + 3y
+\end{array}\right]
+```
