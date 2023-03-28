@@ -25,7 +25,10 @@ $y = h(x)$ and $G(x) = g(h(x))$, then
 \sum_{i=1}^k\left[g_{y^i}\right]^\gamma_{\beta_1\ldots\beta_i}\sum_{c \in{\mathcal
 M}_{k,i}}\prod_{m=1}^i\left[h_{x^{|c_m|}}\right]^{\beta_m}_{\alpha(c_m)}
 ```
-where $\mathcal M}_{k,i}$ is the set of all partitions of the set of $k$
+
+where $\mathcal M}_{k,i}$ 
+
+is the set of all partitions of the set of $k$
 indices with $i$ classes, $|.|$ is the cardinality of a set, $c_m$ is $m$-th class of partition $c$, and ${\mathbb \alpha}(c_m)$ is a sequence of $\alpha$'s indexed by $c_m$. 
 Note that ${\mathcal M}_{k,1}$ contains a single partition with all the
 elements of the set: $\{\{1,\ldots,k\}\}$. ${\mathcal
