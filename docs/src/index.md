@@ -32,5 +32,6 @@ indices with $i$ classes, $|.|$ is the cardinality of a set, $c_m$ is $m$-th cla
 Note that ${\mathcal M}_{k,1}$ contains a single partition with all the
 elements of the set: $\{\{1,\ldots,k\}\}$. 
 
-${\mathcal M}_{k,k}$ contains $k$ partitions with one element each:  $\{\{1\},
-\{2\}, \ldots, \{k\}\}$.
+${\mathcal M}_{k,k}$ contains $k$ partitions with one element each:  
+
+$\{\{1\},\{2\}, \ldots, \{k\}\}$.
