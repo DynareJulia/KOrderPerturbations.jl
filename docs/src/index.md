@@ -42,6 +42,7 @@ $\{\{1\},\{2\}, \ldots, \{k\}\}$.
 
 1. ${\mathcal M}_{k,i}$ is obtained by ``Combinatorics.partitions(k,
    i)``
+   
 2. ```math
  \prod_{m=1}^i\left[h_{x^{|c_m|}}\right]^{\beta_m}_{\alpha(c_m)}
    ````
