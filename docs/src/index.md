@@ -26,7 +26,7 @@ $y = h(x)$ and $G(x) = g(h(x))$, then
 M}_{k,i}}\prod_{m=1}^i\left[h_{x^{|c_m|}}\right]^{\beta_m}_{\alpha(c_m)}
 ```
 
-where $\mathcal M}_{k,i}$ 
+where ${\mathcal M}_{k,i}$ 
 
 is the set of all partitions of the set of $k$
 indices with $i$ classes, $|.|$ is the cardinality of a set, $c_m$ is $m$-th class of partition $c$, and ${\mathbb \alpha}(c_m)$ is a sequence of $\alpha$'s indexed by $c_m$. 
