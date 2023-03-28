@@ -8,14 +8,12 @@ function in the vector of function. The columns of the derivative
 matrix unfold all the partial derivatives
 
 ```math
-\[
 \frac{\partial^2 F}{\partial x \partial x} = \left[\begin{array}{cccccc}
 \frac{\partial^2 F_1}{\partial x_1\partial x_1} & \frac{\partial^2 F_1}{\partial x_1\partial x_2} & \ldots & \frac{\partial^2 F_1}{\partial x_2\partial x_1} & \ldots & \frac{\partial^2 F_1}{\partial x_n\partial x_n} \\
 \rule{0pt}{15pt}\frac{\partial^2 F_2}{\partial x_1\partial x_1} & \frac{\partial^2 F_2}{\partial x_1\partial x_2} & \ldots & \frac{\partial^2 F_2}{\partial x_2\partial x_1} & \ldots & \frac{\partial^2 F_2}{\partial x_n\partial x_n} \\
 \vdots & \vdots \ddots & \vdots & \ddots & \vdots\\
 \frac{\partial^2 F_m}{\partial x_1\partial x_1} & \frac{\partial^2 F_m}{\partial x_1\partial x_2} & \ldots & \frac{\partial^2 F_m}{\partial x_2\partial x_1} & \ldots & \frac{\partial^2 F_m}{\partial x_n\partial x_n}
 \end{array}\right]
-\]
 ```
 
 ## Faa di Bruno formula
