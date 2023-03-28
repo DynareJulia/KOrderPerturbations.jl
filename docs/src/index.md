@@ -20,6 +20,7 @@ matrix unfold all the partial derivatives
 
 If
 $y = h(x)$ and $G(x) = g(h(x))$, then
+
 ```math
   \left[G_{x^k}\right]^\gamma_{\alpha_1,\ldots,\alpha_k} = 
 \sum_{i=1}^k\left[g_{y^i}\right]^\gamma_{\beta_1\ldots\beta_i}\sum_{c \in{\mathcal
