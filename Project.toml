@@ -1,0 +1,4 @@
+name = "KOrderPerturbations"
+uuid = "469b1a10-d817-41b3-9228-c19fbf63afb5"
+authors = ["MichelJuillard <michel.juillard@mjui.fr>"]
+version = "0.1.0"
