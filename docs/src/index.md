@@ -55,11 +55,20 @@ $\{\{1\},\{2\}, \ldots, \{k\}\}$.
   \ldots\otimes \left[h_{x^{|c_i|}}\right]$
   ```
 3. ``reshape()`` the resulting matrix in a multidimensional array
-4. $\sum_{c \in{\mathcal
-M}_{k,i}}\prod_{m=1}^i\left[h_{x^{|c_m|}}\right]^{\beta_m}_{\alpha(c_m)}$
-: sum all the permutations of the matrix with ``PermutedDimsArray``
-5. $\sum_{i=1}^k\left[g_{y^i}\right]^\gamma_{\beta_1\ldots\beta_i}\sum_{c \in{\mathcal
-M}_{k,i}}\prod_{m=1}^i\left[h_{x^{|c_m|}}\right]^{\beta_m}_{\alpha(c_m)}$:
+4. 
+```math
+\sum_{c \in{\mathcal
+M}_{k,i}}\prod_{m=1}^i\left[h_{x^{|c_m|}}\right]^{\beta_m}_{\alpha(c_m)}
+
+```
+sum all the permutations of the matrix with ``PermutedDimsArray``
+
+5. 
+```math
+\sum_{i=1}^k\left[g_{y^i}\right]^\gamma_{\beta_1\ldots\beta_i}\sum_{c \in{\mathcal
+M}_{k,i}}\prod_{m=1}^i\left[h_{x^{|c_m|}}\right]^{\beta_m}_{\alpha(c_m)}
+
+```
 redo steps 2-4 for every $i=1,\ldots, k$ and multiply by
 $\left[g_{y^i}\right]^\gamma_{\beta_1\ldots\beta_i}$.
 
@@ -69,6 +78,6 @@ Compute the third order partial derivatives for
 ```math
 y = h(x) = \left[\begin{array}{c} x_1^3 +3x_2 \\ -x_2^3 + 2 x_3^2 \\ x_3^3
 \end{array}\right]\\
-g(y) = \left[\begin{array}{c} y_1^3 + y \\ y_2^3 + 2y_2^2 + 2 y \\ y_3^3 + 3y
+g(y) = \left[\begin{array}{c} y_1^3 + y_2 \\ y_2^3 + 2y_2^2 + 2 y_3 \\ y_3^3 + 3y_2
 \end{array}\right]
 ```
