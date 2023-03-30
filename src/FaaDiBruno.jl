@@ -1,7 +1,7 @@
 module FaaDiBruno
-using Combinatorics
 using LinearAlgebra
-using KroneckerUtils
+using Combinatorics
+using KroneckerTools
 
 export FaaDiBrunoWs, faa_di_bruno!, partial_faa_di_bruno!
 
@@ -90,6 +90,7 @@ function faa_di_bruno!(dfg::AbstractArray{Float64},f::Array{Matrix{Float64},1},g
             end
         end
     end
+    dfg
 end
 
 """
