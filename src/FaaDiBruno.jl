@@ -14,7 +14,6 @@ struct FaaDiBrunoWs
     work1::Vector{Float64}
     work2::Vector{Float64}
     work3::Vector{Float64}
-    matrixvector::Vector{AbstractArray}
 
     function FaaDiBrunoWs(neq, nf, ng, recipes, order)
         setup_recipes!(recipes, order)
@@ -22,8 +21,7 @@ struct FaaDiBrunoWs
         mx = max(nf, ng)
         work2 = Vector{Float64}(undef, neq * mx^order)
         work3 = Vector{Float64}(undef, neq * mx^order)
-        matrixvector = Vector{AbstractArray}(undef, order)
-        new(recipes, work1, work2, work3, matrixvector)
+        new(recipes, work1, work2, work3)
     end
 end
 
@@ -84,17 +82,12 @@ function faa_di_bruno!(dfg::AbstractArray{Float64}, f::Array{Matrix{Float64}, 1}
         for i in 1:order
             if i == 1 && g[order] != [0]
                 mul!(dfg, f[1], g[order])
-                #            elseif i == order
-                #                a_mul_kron_b!(work1,f[i],g[1],i)
-                #                dfg .+= work1
-                #                println(work1[1])
-                #                println(dfg[1])
             else
                 apply_recipes!(dfg, ws.recipes[order][i], f[i], g, order, ws)
             end
         end
     end
-    dfg
+    return dfg
 end
 
 """
@@ -115,6 +108,7 @@ function partial_faa_di_bruno!(dfg::AbstractArray{Float64}, f::Array{Matrix{Floa
             apply_recipes!(dfg, ws.recipes[order][i], f[i], g, order, ws)
         end
     end
+    return dfg
 end
 
 function apply_recipes!(dfg::AbstractArray{Float64}, recipes::tatuple, f::AbstractArray,
@@ -129,206 +123,20 @@ function apply_recipes!(dfg::AbstractArray{Float64}, recipes::tatuple, f::Abstra
         fill!(work1, 0.0)
         fill!(ws.work2, 0.0)
         if n < mg
+            # TODO: TEST CASE
+            # This function does not exist. Conditional for correctness or optimization?
             a_mul_kron_b!(work1, f, g[recipes1], ws.work2, ws.work3)
         else
             a_mul_kron_b!(work1, f, g[recipes1], ws.work2)
         end
-        a = reshape(work1, dims)
-        d = reshape(dfg, dims)
-        p = length(recipes2)
-        matrixvector = view(ws.matrixvector, 1:p)
-        dims0 = (1, recipes2[1] .+ 1...)
-        for j in 1:length(recipes2)
-            dims1 = (1, recipes2[j] .+ 1...)
-            matrixvector[j] = PermutedDimsArray(a, dims1)
-        end
-        add!(d, matrixvector)
-    end
-end
-
-"""
-    function add!(b::Matrix{Float64},a::AbstractVector{AbstractArray})
-adds to matrix b the sum of the (permuted) matrices in vector of matrices a
-
-The inside loop is unfolded up to 15 matrices
-"""
-function add!(b::AbstractArray{Float64}, a::AbstractVector{AbstractArray})
-    n = length(a)
-    @inbounds b .+= a[1]
-    if n == 1
-        return
-    elseif n == 2
-        @inbounds b .+= a[2]
-    elseif n == 3
-        a2 = a[2]
-        a3 = a[3]
-        @simd for i in CartesianIndices(size(b))
-            @inbounds b[i] += a2[i] + a3[i]
-        end
-    elseif n == 4
-        a2 = a[2]
-        a3 = a[3]
-        a4 = a[4]
-        @simd for i in CartesianIndices(size(b))
-            @inbounds b[i] += a2[i] + a3[i] + a4[i]
-        end
-    elseif n == 5
-        a2 = a[2]
-        a3 = a[3]
-        a4 = a[4]
-        a5 = a[5]
-        @simd for i in CartesianIndices(size(b))
-            @inbounds b[i] += a2[i] + a3[i] + a4[i] + a5[i]
-        end
-    elseif n == 6
-        a2 = a[2]
-        a3 = a[3]
-        a4 = a[4]
-        a5 = a[5]
-        a6 = a[6]
-        @simd for i in CartesianIndices(size(b))
-            @inbounds b[i] += a2[i] + a3[i] + a4[i] + a5[i] + a6[i]
-        end
-    elseif n == 7
-        a2 = a[2]
-        a3 = a[3]
-        a4 = a[4]
-        a5 = a[5]
-        a6 = a[6]
-        a7 = a[7]
-        @simd for i in CartesianIndices(size(b))
-            @inbounds b[i] += a2[i] + a3[i] + a4[i] + a5[i] + a6[i] + a7[i]
-        end
-    elseif n == 8
-        a2 = a[2]
-        a3 = a[3]
-        a4 = a[4]
-        a5 = a[5]
-        a6 = a[6]
-        a7 = a[7]
-        a8 = a[8]
-        @simd for i in CartesianIndices(size(b))
-            @inbounds b[i] += a2[i] + a3[i] + a4[i] + a5[i] + a6[i] + a7[i] + a8[i]
-        end
-    elseif n == 9
-        a2 = a[2]
-        a3 = a[3]
-        a4 = a[4]
-        a5 = a[5]
-        a6 = a[6]
-        a7 = a[7]
-        a8 = a[8]
-        a9 = a[9]
-        @simd for i in CartesianIndices(size(b))
-            @inbounds b[i] += a2[i] + a3[i] + a4[i] + a5[i] + a6[i] + a7[i] + a8[i] + a9[i]
-        end
-    elseif n == 10
-        a2 = a[2]
-        a3 = a[3]
-        a4 = a[4]
-        a5 = a[5]
-        a6 = a[6]
-        a7 = a[7]
-        a8 = a[8]
-        a9 = a[9]
-        a10 = a[10]
-        @simd for i in CartesianIndices(size(b))
-            @inbounds b[i] += a2[i] + a3[i] + a4[i] + a5[i] + a6[i] + a7[i] + a8[i] +
-                              a9[i] + a10[i]
-        end
-    elseif n == 11
-        a2 = a[2]
-        a3 = a[3]
-        a4 = a[4]
-        a5 = a[5]
-        a6 = a[6]
-        a7 = a[7]
-        a8 = a[8]
-        a9 = a[9]
-        a10 = a[10]
-        a11 = a[11]
-        @simd for i in CartesianIndices(size(b))
-            @inbounds b[i] += a2[i] + a3[i] + a4[i] + a5[i] + a6[i] + a7[i] + a8[i] +
-                              a9[i] + a10[i] + a11[i]
-        end
-    elseif n == 12
-        a2 = a[2]
-        a3 = a[3]
-        a4 = a[4]
-        a5 = a[5]
-        a6 = a[6]
-        a7 = a[7]
-        a8 = a[8]
-        a9 = a[9]
-        a10 = a[10]
-        a11 = a[11]
-        a12 = a[12]
-        @simd for i in CartesianIndices(size(b))
-            @inbounds b[i] += a2[i] + a3[i] + a4[i] + a5[i] + a6[i] + a7[i] + a8[i] +
-                              a9[i] + a10[i] + a11[i] + a12[i]
-        end
-    elseif n == 13
-        a2 = a[2]
-        a3 = a[3]
-        a4 = a[4]
-        a5 = a[5]
-        a6 = a[6]
-        a7 = a[7]
-        a8 = a[8]
-        a9 = a[9]
-        a10 = a[10]
-        a11 = a[11]
-        a12 = a[12]
-        a13 = a[13]
-        @simd for i in CartesianIndices(size(b))
-            @inbounds b[i] += a2[i] + a3[i] + a4[i] + a5[i] + a6[i] + a7[i] + a8[i] +
-                              a9[i] + a10[i] + a11[i] + a12[i] + a13[i]
-        end
-    elseif n == 14
-        a2 = a[2]
-        a3 = a[3]
-        a4 = a[4]
-        a5 = a[5]
-        a6 = a[6]
-        a7 = a[7]
-        a8 = a[8]
-        a9 = a[9]
-        a10 = a[10]
-        a11 = a[11]
-        a12 = a[12]
-        a13 = a[13]
-        a14 = a[14]
-        @simd for i in CartesianIndices(size(b))
-            @inbounds b[i] += a2[i] + a3[i] + a4[i] + a5[i] + a6[i] + a7[i] + a8[i] +
-                              a9[i] + a10[i] + a11[i] + a12[i] + a13[i] + a14[i]
-        end
-    elseif n == 15
-        a2 = a[2]
-        a3 = a[3]
-        a4 = a[4]
-        a5 = a[5]
-        a6 = a[6]
-        a7 = a[7]
-        a8 = a[8]
-        a9 = a[9]
-        a10 = a[10]
-        a11 = a[11]
-        a12 = a[12]
-        a13 = a[13]
-        a14 = a[14]
-        a15 = a[15]
-        @simd for i in CartesianIndices(size(b))
-            @inbounds b[i] += a2[i] + a3[i] + a4[i] + a5[i] + a6[i] + a7[i] + a8[i] +
-                              a9[i] + a10[i] + a11[i] + a12[i] + a13[i] + a14[i] + a15[i]
-        end
-    else
-        na = length(a)
-        @inbounds for i in CartesianIndices(size(b))
-            @simd for j in 2:na
-                b[i] += a[j][i]
-            end
+        work1_tensor = reshape(work1, dims)
+        dfg_tensor = reshape(dfg, dims)
+        for r in recipes2
+            dims1 = (1, r .+ 1...)
+            dfg_tensor .+= PermutedDimsArray(work1_tensor, dims1)
         end
     end
+    return dfg
 end
 
 end
