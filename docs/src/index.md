@@ -109,4 +109,24 @@ The Taylor expansion is then
     (f_{y^+}g_y + f_0)g_{y^p} + f_{y^+}g_{y^p}g_y^{\otimes^p} = K_1
 ```
 where only the terms containing $g_{y^p}$ are explicit and all other
-terms are summarized in $K1$.
+terms are summarized in $K_1$.
+
+### Solving for $g_{y^P}
+
+The above equation can be rewritten
+
+```math
+    g_{y^p} + (f_{y^+}g_y + f_0)^{-1}f_{y^+}g_{y^p}g_y^{\otimes^p} = (f_{y^+}g_y + f_0)^_{-1}K_1
+```
+
+and solved with a suitable algorithm
+
+### Solving for $g_{y^iu^k}
+
+Solving for cross-derivatives $g_{y^iu^k} such that $i+k=p$ requires
+only solving the linear system
+
+```math
+   (f_{y^+}g_y + f_0)g_{y^iu^k} = K_2
+```
+
