@@ -81,3 +81,25 @@ y = h(x) = \left[\begin{array}{c} x_1^3 +3x_2 \\ -x_2^3 + 2 x_3^2 \\ x_3^3
 g(y) = \left[\begin{array}{c} y_1^3 + y_2 \\ y_2^3 + 2y_2^2 + 2 y_3 \\ y_3^3 + 3y_2
 \end{array}\right]
 ```
+
+## Taylor expansion 
+
+Original model:
+```math
+   \mathbb{E}_tF(y_{t-1}, u_t, \sigma) =  \mathbb{E}_tf\left(g\left(g\left(y_{t-1},u_t,\sigma\right),\sigma\epsilon_{t+1},\sigma\right),g\left(y_{t-1},u_t,\sigma\right),y_{t-1},u_t\right)=0
+```
+
+Taylor expansion:
+```math
+\sum_{i=1}^k\left[g_{y^i}\right]_{\beta_1\ldots\beta_i}\sum_{c \in{\mathcal
+M}_{k,i}}\prod_{m=1}^i\left[h_{x^{|c_m|}}\right]^{\beta_m}_{\alpha(c_m)}
+= 0
+```
+and
+
+```math
+\left[g_y\right]\left[h_{x^k}\right] = -\sum_{i=2}^k\left[g_{y^i}\right]_{\beta_1\ldots\beta_i}\sum_{c \in{\mathcal
+M}_{k,i}}\prod_{m=1}^i\left[h_{x^{|c_m|}}\right]^{\beta_m}_{\alpha(c_m)}
+```
+
+only the terms invovling $g_{y^k} are explicited.
