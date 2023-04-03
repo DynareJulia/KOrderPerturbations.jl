@@ -111,7 +111,7 @@ The Taylor expansion is then
 where only the terms containing $g_{y^p}$ are explicit and all other
 terms are summarized in $K_1$.
 
-### Solving for $g_{y^P}
+### Solving for $g_{y^p}$
 
 The above equation can be rewritten
 
@@ -121,7 +121,7 @@ The above equation can be rewritten
 
 and solved with a suitable algorithm
 
-### Solving for $g_{y^iu^k}
+### Solving for $g_{y^iu^k}$
 
 Solving for cross-derivatives $g_{y^iu^k} such that $i+k=p$ requires
 only solving the linear system
