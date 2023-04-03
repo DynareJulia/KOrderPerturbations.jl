@@ -116,7 +116,7 @@ terms are summarized in $K_1$.
 The above equation can be rewritten
 
 ```math
-    g_{y^p} + (f_{y^+}g_y + f_0)^{-1}f_{y^+}g_{y^p}g_y^{\otimes^p} = (f_{y^+}g_y + f_0)^_{-1}K_1
+    g_{y^p} + (f_{y^+}g_y + f_0)^{-1}f_{y^+}g_{y^p}g_y^{\otimes^p} = (f_{y^+}g_y + f_0)^{-1}K_1
 ```
 
 and solved with a suitable algorithm
