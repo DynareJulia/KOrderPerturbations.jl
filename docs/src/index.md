@@ -123,7 +123,7 @@ and solved with a suitable algorithm
 
 ### Solving for $g_{y^iu^k}$
 
-Solving for cross-derivatives $g_{y^iu^k} such that $i+k=p$ requires
+Solving for cross-derivatives $g_{y^iu^k}$ such that $i+k=p$ requires
 only solving the linear system
 
 ```math
