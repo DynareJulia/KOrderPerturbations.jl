@@ -84,22 +84,29 @@ g(y) = \left[\begin{array}{c} y_1^3 + y_2 \\ y_2^3 + 2y_2^2 + 2 y_3 \\ y_3^3 + 3
 
 ## Taylor expansion 
 
-Original model:
-```math
-   \mathbb{E}_tF(y_{t-1}, u_t, \sigma) =  \mathbb{E}_tf\left(g\left(g\left(y_{t-1},u_t,\sigma\right),\sigma\epsilon_{t+1},\sigma\right),g\left(y_{t-1},u_t,\sigma\right),y_{t-1},u_t\right)=0
-```
-
 Taylor expansion:
 ```math
-\sum_{i=1}^k\left[g_{y^i}\right]_{\beta_1\ldots\beta_i}\sum_{c \in{\mathcal
-M}_{k,i}}\prod_{m=1}^i\left[h_{x^{|c_m|}}\right]^{\beta_m}_{\alpha(c_m)}
+\sum_{i=1}^p\left[f_{y^i}\right]_{\beta_1\ldots\beta_i}\sum_{c \in{\mathcal
+M}_{p,i}}\prod_{m=1}^i\left[g_{x^{|c_m|}}\right]^{\beta_m}_{\alpha(c_m)}
 = 0
 ```
+Note that $g_{y^p}$ appears only in the first term of the sum above
 and
 
 ```math
-\left[g_y\right]\left[h_{x^k}\right] = -\sum_{i=2}^k\left[g_{y^i}\right]_{\beta_1\ldots\beta_i}\sum_{c \in{\mathcal
-M}_{k,i}}\prod_{m=1}^i\left[h_{x^{|c_m|}}\right]^{\beta_m}_{\alpha(c_m)}
+\left[f_y\right]\left[g_{x^p}\right] = -\sum_{i=2}^p\left[f_{y^i}\right]_{\beta_1\ldots\beta_i}\sum_{c \in{\mathcal
+M}_{p,i}}\prod_{m=1}^i\left[g_{x^{|c_m|}}\right]^{\beta_m}_{\alpha(c_m)}
 ```
 
-only the terms invovling $g_{y^k} are explicited.
+Original DSGE model:
+```math
+   \mathbb{E}_tF(y_{t-1}, u_t, \sigma) =  \mathbb{E}_tf\left(g\left(g\left(y_{t-1},u_t,\sigma\right),\sigma\epsilon_{t+1},\sigma\right),g\left(y_{t-1},u_t,\sigma\right),y_{t-1},u_t\right)=0
+```
+that involves two compositions of functions.
+
+The Taylor expansion is then
+```math
+    (f_{y^+}g_y + f_0)g_{y^p} + f_{y^+}g_{y^p}g_y^{\otimes^p} = K_1
+```
+where only the terms containing $g_{y^p}$ are explicit and all other
+terms are summarized in $K1$.
