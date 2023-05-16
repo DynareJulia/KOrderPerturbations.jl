@@ -4,6 +4,7 @@
 #   x_t = (1 - ρ) xbar + ρ x_{t-1} + ϵ_t
 #
 
+using KOrderPerturbations
 using SparseArrays
 using Test
 
@@ -30,7 +31,7 @@ The variables are [y_t, x_t] in periods t-1, t, t+1 followed by ϵ
 """
 function f_derivatives(ss, ϕ, order)
     xbar, β, θ, ρ = ϕ
-    FD = [spzeros(2, 7^order)]
+    FD = [spzeros(2, 7^i) for i in 1:order]
 
     # order 1
     # w.r. y_t
@@ -49,7 +50,7 @@ function f_derivatives(ss, ϕ, order)
     if order > 1
         # w.r. y_{t+1}x_{t+1}
         FD[2][1, 4*7 + 6] = -β*θ*exp(θ*xbar)
-        FD[2][1, 5*7 + 5] = FD[1][1, 4*7 + 5]
+        FD[2][1, 5*7 + 5] = FD[2][1, 4*7 + 6]
         # w.r. x_{t+1}*x_{t+1}
         FD[2][1, 5*7 + 6] = -β*θ^2*exp(θ*xbar)*(1 + ss[1])
     end
@@ -57,8 +58,8 @@ function f_derivatives(ss, ϕ, order)
     if order > 2
         # w.r. y_{t+1}*x_{t+1}*x_{t+1}
         FD[3][1, 4*49 + 5*7 + 6] = -β*θ^2*exp(θ*xbar)
-        FD[3][1, 5*49 + 4*7 + 6] = FD[1][1, 4*49 + 5*7 + 5]
-        FD[3][1, 5*49 + 5*7 + 5] = FD[1][1, 4*49 + 5*7 + 5]
+        FD[3][1, 5*49 + 4*7 + 6] = FD[3][1, 4*49 + 5*7 + 5]
+        FD[3][1, 5*49 + 5*7 + 5] = FD[3][1, 4*49 + 5*7 + 5]
         # w.r. x_{t+1}*x_{t+1}*x_{t+1}
         FD[3][1, 5*49 + 5*7 + 6] = -β*θ^3*exp(θ*xbar)*(1 + ss[1])
     end
@@ -140,7 +141,7 @@ end
     i_bkwrd = [1, 2]
     i_current = [3, 4]
     state_range = [1, 2]
-    ws = KOrderWs(endo_nbr, n_fwrd, n_states, n_current,
+    ws = KOrderPerturbations.KOrderWs(endo_nbr, n_fwrd, n_states, n_current,
                  current_exogenous_nbr, i_fwrd, i_bkwrd,
                  i_current, state_range, order)
     moments = [0, Sϵ^2, 0, 3*Sϵ^4]
