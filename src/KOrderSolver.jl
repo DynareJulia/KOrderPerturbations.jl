@@ -25,7 +25,7 @@ mutable struct KOrderWs
     fwrd_index::Array{Int64}
     state_index::Array{Int64}
     cur_index::Array{Int64}
-    state_range::AbstractRange
+    state_range::AbstractRange # IS IT USEFULL ?
     gfwrd::Vector{Matrix{Float64}}
     gg::Vector{Matrix{Float64}}
     hh::Vector{Matrix{Float64}}
