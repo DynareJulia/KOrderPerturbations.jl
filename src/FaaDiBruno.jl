@@ -1,4 +1,3 @@
-module FaaDiBruno
 using LinearAlgebra
 using Combinatorics
 using KroneckerTools
@@ -139,4 +138,4 @@ function apply_recipes!(dfg::AbstractArray{Float64}, recipes::tatuple, f::Abstra
     return dfg
 end
 
-end
+

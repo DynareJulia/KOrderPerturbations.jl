@@ -136,16 +136,17 @@ end
     n_fwrd = 2
     n_states = 1
     n_current = 2
-    current_exognous_nbr = 1
+    n_shocks = 1
+    current_exogenous_nbr = 1:1
     i_fwrd = [5, 6]
     i_bkwrd = [1, 2]
     i_current = [3, 4]
-    state_range = [1, 2]
+    state_range = 1:2
     ws = KOrderPerturbations.KOrderWs(endo_nbr, n_fwrd, n_states, n_current,
-                 current_exogenous_nbr, i_fwrd, i_bkwrd,
+                 n_shocks, i_fwrd, i_bkwrd,
                  i_current, state_range, order)
-    moments = [0, Sϵ^2, 0, 3*Sϵ^4]
-    k_order_solution(g_derivatives, f_derivatives, moments[1:order], order, ws) 
+    moments = [0, SDϵ^2, 0, 3*SDϵ^4]
+    KOrderPerturbations.k_order_solution!(g_derivatives, f_derivatives, moments[1:order], order, ws) 
 end
 
 

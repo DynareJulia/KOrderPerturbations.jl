@@ -1,12 +1,13 @@
-module KOrderSolver
 
-using model
-using KroneckerUtils
-using LinSolveAlgo
-using LinearAlgebra
-using LinearAlgebra.BLAS
-using SolveEyePlusMinusAkronB: EyePlusAtKronBWS, generalized_sylvester_solver!
-using FaaDiBruno: faa_di_bruno!, partial_faa_di_bruno!, FaaDiBrunoWs
+#using model
+using KroneckerTools
+#using LinSolveAlgo
+#using LinearAlgebra
+#using LinearAlgebra.BLAS
+using FastLapackInterface
+using FastLapackInterface: Workspace
+using GeneralizedSylvesterSolver: GeneralizedSylvesterWs, generalized_sylvester_solver!
+#using FaaDiBruno: faa_di_bruno!, partial_faa_di_bruno!, FaaDiBrunoWs
 export make_gg!, make_hh!, k_order_solution!, KOrderWs
 
 mutable struct KOrderWs
@@ -44,8 +45,8 @@ mutable struct KOrderWs
     work2::Vector{Float64}
     faa_di_bruno_ws_1::FaaDiBrunoWs
     faa_di_bruno_ws_2::FaaDiBrunoWs
-    linsolve_ws_1::LinSolveWS
-    gs_ws::EyePlusAtKronBWS
+    linsolve_ws_1::LUWs
+    gs_ws::GeneralizedSylvesterWs
     function KOrderWs(nvar,nfwrd,nstate,ncur,nshock,fwrd_index,state_index,
                       cur_index,state_range,order)
         ngcol = nstate + nshock + 1
@@ -63,7 +64,7 @@ mutable struct KOrderWs
         dy = [zeros(ncur, nstate^i) for i = 1:order]
         faa_di_bruno_ws_1 = FaaDiBrunoWs(nfwrd, nhcol, nhcol, order)
         faa_di_bruno_ws_2 = FaaDiBrunoWs(nvar, nhrow, nhcol, order)
-        linsolve_ws_1 = LinSolveWS(nvar)
+        linsolve_ws_1 = LUWs(nvar)
         rhs = zeros(nvar*nhcol^order)
         rhs1 = zeros(nvar*max(nvar^order,nshock*(nstate+nshock)^(order-1)))
         gykf = zeros(nfwrd*nstate^order)
@@ -74,7 +75,7 @@ mutable struct KOrderWs
         c = zeros(nstate,nstate)
         work1 = zeros(nvar*ngcol^order)
         work2 = similar(work1)
-        gs_ws = EyePlusAtKronBWS(nvar,nvar,nstate,order)
+        gs_ws = GeneralizedSylvesterWs(nvar,nvar,nstate,order)
         new(nvar, nfwrd, nstate, ncur, nshock, ngcol, nhcol, nhrow,
             nng, nnh, gci, hci, fwrd_index, state_index, cur_index,
             state_range, gfwrd, gg, hh, rhs, rhs1, my, zy, dy, gykf,
@@ -83,12 +84,12 @@ mutable struct KOrderWs
     end
 end
 
-function KOrderWs(m::Model, order)
-    state_range = m.n_static .+ (1:m.n_states)
-    KOrderWs(m.endo_nbr, m.n_fwrd, m.n_states, m.n_current,
-             m.current_exogenous_nbr, m.i_fwrd, m.i_bkwrd,
-             m.i_current, state_range, order)
-end
+#function KOrderWs(m::Model, order)
+#    state_range = m.n_static .+ (1:m.n_states)
+#    KOrderWs(m.endo_nbr, m.n_fwrd, m.n_states, m.n_current,
+#             m.current_exogenous_nbr, m.i_fwrd, m.i_bkwrd,
+#             m.i_current, state_range, order)
+#end
 
     
 """
@@ -552,7 +553,6 @@ function make_gsk!(g::Vector{<:AbstractArray},
                    nfwrd::Int64, nstate::Int64, nvar::Int64,
                    ncur::Int64, nshock::Int64,
                    fwrd_index::Vector{Int64},
-                   linsolve_ws_1::LinSolveWS, work1::Vector{Float64},
                    work2::Vector{Float64}, a1)
 
     # solves a*g_σ^2 = (-B_uu - f1*g_uu )Σ
@@ -634,7 +634,7 @@ function k_order_solution!(g,f,moments,order,ws)
     linsolve_ws = ws.linsolve_ws_1
     work1 = ws.work1
     work2 = ws.work2
-    ws.gs_ws = EyePlusAtKronBWS(nvar,nvar,nstate,order)
+    ws.gs_ws = GeneralizedSylvesterWs(nvar,nvar,nstate,order)
     gs_ws = ws.gs_ws
     gs_ws_result = gs_ws.result
     
@@ -662,4 +662,3 @@ function k_order_solution!(g,f,moments,order,ws)
 #              fwrd_index, linsolve_ws, work1, work2)
 end
 
-end
