@@ -70,57 +70,59 @@ end
   g_derivatives(ss, ϕ, order)
 
 returns a vector of order matrices containing the partial derivatives of the solution of the model at each order
-The variables are [x_{t-1}, ϵ_t, σ] in periods t-1, t, t+1 followed by ϵ
+The variables are [y_{t-1}, x_{t-1}, ϵ_t, σ]
+2nd derivatives
+[
+y_{t-1}y_{t-1} y_{t-1}x_{t-1}, y_{t-1}ϵ_t, y_{t-1}σ,
+x_{t-1}y_{t-1} x_{t-1}x_{t-1}, x_{t-1}ϵ_t, x_{t-1}σ,
+ϵ_ty_{t-1} ϵ_tx_{t-1}, ϵ_tϵ_t, ϵ_tσ,
+σy_{t-1} σx_{t-1}, σϵ_t, σσ]
+
 See DynareJulia.pdf (2023)
 """
 function g_derivatives(ss, ϕ, order)
     xbar, β, θ, ρ = ϕ
-    GD = [zeros(2, 3^order)]
+    GD = [zeros(2, 4^i) for i=1:order]
 
     # order = 1
     M1 = β*θ*ρ*exp(θ*xbar)/(1 - ρ)
     # w.r. ϵ_t
-    GD[1][2] = M1 #* (1/(1 - β*exp(θ*xbar)) - ρ/(1 - β*ρ*exp(θ*xbar))),
+    GD[1][3] = M1 * (1/(1 - β*exp(θ*xbar)) - ρ/(1 - β*ρ*exp(θ*xbar))),
     # w.r. x_{t-1}
-    GD[1][1] = ρ * GD[1][2]
-    # w.r. σ
-    GD[1][3] = 0
+    GD[1][2] = ρ * GD[1][2]
 
     return GD
 end
 
 function gd_targets(ss, ϕ, order)
     xbar, β, θ, ρ = ϕ
-    GD = [zeros(2, 3^order)]
+    GD = [zeros(2, 4^order)]
 
     # order = 1
     M1 = β*θ*ρ*exp(θ*xbar)/(1 - ρ)
     # w.r. ϵ_t
-    GD[1][2] = M1 * (1/(1 - β*exp(θ*xbar)) - ρ/(1 - β*ρ*exp(θ*xbar)))
+    GD[1][3] = M1 * (1/(1 - β*exp(θ*xbar)) - ρ/(1 - β*ρ*exp(θ*xbar)))
     # w.r. x_{t-1}
-    GD[1][1] = ρ * GD[1][2]
-    # w.r. σ
-    GD[1][3] = 0
+    GD[1][2] = ρ * GD[1][2]
 
     if order > 1
         # order 2
         M2 = θ*ρ/(1 - ρ)*M1
         # w.r. ϵ_t*ϵ_t
-        GD[2][3 + 2] = M2 * (1/(1 - β*exp(θ*xbar)) - 2*ρ/(1 - β*ρ*exp(θ*xbar)) + ρ^2/(1 - β*ρ^2*exp(θ*xbar)))
+        GD[2][2*4 + 3] = M2 * (1/(1 - β*exp(θ*xbar)) - 2*ρ/(1 - β*ρ*exp(θ*xbar)) + ρ^2/(1 - β*ρ^2*exp(θ*xbar)))
         # w.r. x_{t-1}*x_{t-1}
-        GD[2][1] = ρ^2 * GD[2][3 + 2]
+        GD[2][4 + 2] = ρ^2 * GD[2][2*4 + 2]
         # w.r. x_{t-1}*ϵ_{t-1}
-        GD[2][2] = ρ * GD[2][3 + 2]
-        GD[2][3 + 1] = ρ * GD[2][2]
-        # w.r. σ
-        GD[1][3] = 0
+        GD[2][4 + 3] = ρ * GD[2][2*4 + 2]
+        GD[2][2*4 + 3] = GD[2][4 + 3]
+
     end
 end
 
 @testset "steady state" begin
     ss = steady_state(ϕ)
-    @test ss[1] - β*exp(θ*ss[2])*(1 + ss[1]) ≈ 0
-    @test ss[2] - (1 - ρ)*ss[2] - ρ*ss[2] ≈ 0
+    @test ss[1] ≈ β*exp(θ*ss[2])*(1 + ss[1])
+    @test ss[2] ≈ (1 - ρ)*ss[2] - ρ*ss[2]
 end
 
 @testset "F derivatives" begin
@@ -131,13 +133,13 @@ end
 @testset "second order" begin
     order = 2
     ss = steady_state(ϕ)
-    FD = f_derivatives(ss, ϕ, 3)
+    FD = f_derivatives(ss, ϕ, 2)
+    g = g_derivatives(ss, ϕ, 2)
     endo_nbr = 2
     n_fwrd = 2
-    n_states = 1
+    n_states = 2
     n_current = 2
     n_shocks = 1
-    current_exogenous_nbr = 1:1
     i_fwrd = [5, 6]
     i_bkwrd = [1, 2]
     i_current = [3, 4]
@@ -146,7 +148,8 @@ end
                  n_shocks, i_fwrd, i_bkwrd,
                  i_current, state_range, order)
     moments = [0, SDϵ^2, 0, 3*SDϵ^4]
-    KOrderPerturbations.k_order_solution!(g_derivatives, f_derivatives, moments[1:order], order, ws) 
+    @show g
+    KOrderPerturbations.k_order_solution!(g, f_derivatives, moments[1:order], order, ws) 
 end
 
 
