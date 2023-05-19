@@ -55,7 +55,8 @@ mutable struct KOrderWs
         nng = [ngcol^i for i = 1:(order-1)]
         nnh = [nhcol^i for i = 1:(order-1)]
         gfwrd = [zeros(nfwrd,nstate^i) for i = 1:order]
-        gg = [zeros(nfwrd,ngcol^i) for i = 1:order]
+        @show nhcol
+        gg = [zeros(ngcol, nhcol^i) for i = 1:order]
         hh = [zeros(nhrow, nhcol^i) for i = 1:order]
         gci = [CartesianIndices(gg[i]) for i = 1:order]
         hci = [CartesianIndices(hh[i]) for i = 1:order]
@@ -102,8 +103,13 @@ with respect to [y, u, σ, ϵ]
 function make_gg!(gg,g,order,ws)
     ngg1 = ws.nstate + 2*ws.nshock + 1
     mgg1 = ws.nstate + ws.nshock + 1
+    @show order
+    @show size(gg[order])
+    @show mgg1, ngg1^order
     @assert size(gg[order]) == (mgg1, ngg1^order)
-    @assert size(g[order],2) == (ws.nstate + ws.nshock + 1)^order
+    @show size(g[order], 2)
+    @show (ws.nstate + 2*ws.nshock + 1)^order
+    @assert size(g[order],2) == ((ws.nstate + ws.nshock + 1)^order)    
     @assert ws.state_range.stop <= size(g[order],1)
     if order == 1
         vg1 = view(g[1], ws.state_index, :)
