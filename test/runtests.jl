@@ -1,6 +1,6 @@
 using Test
 
-using KOrderPerturbations.FaaDiBruno
+using KOrderPerturbations
 
 @testset verbose=true "KOrderPerturbations" begin
     # In the implementation, orders 1, 2, and 3+ are different cases, so we gotta test all.

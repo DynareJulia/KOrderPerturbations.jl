@@ -87,7 +87,7 @@ function g_derivatives(ss, ϕ, order)
     # order = 1
     M1 = β*θ*ρ*exp(θ*xbar)/(1 - ρ)
     # w.r. ϵ_t
-    GD[1][3] = M1 * (1/(1 - β*exp(θ*xbar)) - ρ/(1 - β*ρ*exp(θ*xbar))),
+    GD[1][3] = M1 * (1/(1 - β*exp(θ*xbar)) - ρ/(1 - β*ρ*exp(θ*xbar)))
     # w.r. x_{t-1}
     GD[1][2] = ρ * GD[1][2]
 
@@ -96,7 +96,7 @@ end
 
 function gd_targets(ss, ϕ, order)
     xbar, β, θ, ρ = ϕ
-    GD = [zeros(2, 4^order)]
+    GD = [zeros(2, 4^i) for i=1:order]
 
     # order = 1
     M1 = β*θ*ρ*exp(θ*xbar)/(1 - ρ)
@@ -115,14 +115,14 @@ function gd_targets(ss, ϕ, order)
         # w.r. x_{t-1}*ϵ_{t-1}
         GD[2][4 + 3] = ρ * GD[2][2*4 + 2]
         GD[2][2*4 + 3] = GD[2][4 + 3]
-
     end
+    return GD
 end
 
 @testset "steady state" begin
     ss = steady_state(ϕ)
     @test ss[1] ≈ β*exp(θ*ss[2])*(1 + ss[1])
-    @test ss[2] ≈ (1 - ρ)*ss[2] - ρ*ss[2]
+    @test ss[2] ≈ (1 - ρ)*ss[2] + ρ*ss[2]
 end
 
 @testset "F derivatives" begin
@@ -149,7 +149,7 @@ end
                  i_current, state_range, order)
     moments = [0, SDϵ^2, 0, 3*SDϵ^4]
     @show g
-    KOrderPerturbations.k_order_solution!(g, f_derivatives, moments[1:order], order, ws) 
+    KOrderPerturbations.k_order_solution!(g, FD, moments[1:order], order, ws) 
 end
 
 
