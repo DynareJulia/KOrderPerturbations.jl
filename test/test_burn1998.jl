@@ -82,14 +82,16 @@ See DynareJulia.pdf (2023)
 """
 function g_derivatives(ss, ϕ, order)
     xbar, β, θ, ρ = ϕ
-    GD = [zeros(2, 4^i) for i=1:order]
+    GD = [zeros(3, 4^i) for i=1:order]
 
     # order = 1
     M1 = β*θ*ρ*exp(θ*xbar)/(1 - ρ)
     # w.r. ϵ_t
-    GD[1][3] = M1 * (1/(1 - β*exp(θ*xbar)) - ρ/(1 - β*ρ*exp(θ*xbar)))
+    GD[1][1, 3] = M1*(1/(1 - β*exp(θ*xbar)) - ρ/(1 - β*ρ*exp(θ*xbar)))
     # w.r. x_{t-1}
-    GD[1][2] = ρ * GD[1][2]
+    GD[1][1, 2] = ρ*GD[1][3]
+    GD[1][2, 2] = ρ
+    GD[1][2, 3] = 1
 
     return GD
 end
