@@ -16,6 +16,7 @@ struct FaaDiBrunoWs
 
     function FaaDiBrunoWs(neq, nf, ng, recipes, order)
         setup_recipes!(recipes, order)
+        @show "Ws: $ng"
         work1 = Vector{Float64}(undef, neq * ng^order)
         mx = max(nf, ng)
         work2 = Vector{Float64}(undef, neq * mx^order)
@@ -66,8 +67,8 @@ function setup_recipes!(recipes::trecipes, order::Int)
     end
 end
 
-function faa_di_bruno!(dfg::AbstractArray{Float64}, f::Array{Matrix{Float64}, 1},
-                       g::Array{Matrix{Float64}}, order::Int, ws::FaaDiBrunoWs)
+function faa_di_bruno!(dfg::AbstractArray{Float64}, f::Array{AbstractMatrix{Float64}, 1},
+                       g::Array{AbstractMatrix{Float64}}, order::Int, ws::FaaDiBrunoWs)
     m = size(f[1], 1)
     n = size(g[1], 2)
     work1 = reshape(view(ws.work1, 1:(m * n^order)), m, n^order)
@@ -94,13 +95,18 @@ end
 computes the derivatives of f(g()) at order "order"
 but without the term involving order'th derivative of g
 """
-function partial_faa_di_bruno!(dfg::AbstractArray{Float64}, f::Array{Matrix{Float64}, 1},
-                               g::Array{Matrix{Float64}}, order::Int, ws::FaaDiBrunoWs)
+function partial_faa_di_bruno!(dfg::AbstractArray{Float64}, f::Array{<:AbstractMatrix, 1},
+                               g::Array{<:AbstractMatrix}, order::Int, ws::FaaDiBrunoWs)
     m = size(f[1], 1)
     n = size(g[1], 2)
     if order == 1
         throw(ArgumentError("Can't run partial_faa_di_bruno() for order == 1"))
     elseif order == 2
+        @show size(dfg)
+        @show size(f[2])
+        @show size(g[1])
+        @show size(ws.work1)
+        @show size(ws.work2)
         a_mul_kron_b!(dfg, f[2], g[1], 2, ws.work1, ws.work2)
     else
         for i in 1:order

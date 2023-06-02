@@ -82,7 +82,7 @@ See DynareJulia.pdf (2023)
 """
 function g_derivatives(ss, ϕ, order)
     xbar, β, θ, ρ = ϕ
-    GD = [zeros(3, 4^i) for i=1:order]
+    GD = [spzeros(2, 4^i) for i=1:order]
 
     # order = 1
     M1 = β*θ*ρ*exp(θ*xbar)/(1 - ρ)
@@ -152,6 +152,8 @@ end
     moments = [0, SDϵ^2, 0, 3*SDϵ^4]
     @show g
     KOrderPerturbations.k_order_solution!(g, FD, moments[1:order], order, ws) 
+    @show g
+    @show gd_targets(ss, ϕ, 2)
 end
 
 
