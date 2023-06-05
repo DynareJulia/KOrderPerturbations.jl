@@ -237,7 +237,7 @@ end
     @test gg[1] ≈  gg1_target
 end
 @testset "make_a" begin
-    @test a ≈ FD[1][:, 5:6]*g[1][:,1:2] + FD[1][:,3:4]
+    @test a ≈ FD[1][:, 5:6]*GD[1][:,1:2] + FD[1][:,3:4]
 end 
 
 @testset "b" begin
