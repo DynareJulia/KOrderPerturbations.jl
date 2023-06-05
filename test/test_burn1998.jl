@@ -129,6 +129,36 @@ function gd_targets(ss, ϕ, order)
     return GD
 end
 
+"Compute Byy following the algebric solution in DynareJulia.pdf (2023)"
+function Byy_targets(ss, ϕ, order)
+    GD = g_derivatives(ss, ϕ, 2)
+    FD = f_derivatives(ss, ϕ, 2)
+    gy = GD[1][:, 1:2]
+    nvars = size(gy, 2)
+    gygy = gy*gy
+
+    # f_{y₊y₊} = [yₜ₊₁yₜ₊₁ yₜ₊₁xₜ₊₁ xₜ₊₁yₜ₊₁ xₜ₊₁xₜ₊₁]
+    # f_{y₊yo} = [yₜ₊₁yₜ   yₜ₊₁xₜ   xₜ₊₁yₜ   xₜ₊₁xₜ  ]
+    # f_{y₊y₋} = [yₜ₊₁yₜ-₁ yₜ₊₁xₜ-₁ xₜ₊₁yₜ-₁ xₜ₊₁xₜ-₁]
+    fyp_yp = [ FD[2][:, 4*7 + 5 : 4*7 + 6] FD[2][:, 5*7 + 5 : 5*7 + 6]]
+    fyp_yo = [ FD[2][:, 4*7 + 3 : 4*7 + 4] FD[2][:, 5*7 + 3 : 5*7 + 4]]
+    fyp_ym = [ FD[2][:, 4*7 + 1 : 4*7 + 2] FD[2][:, 5*7 + 1 : 5*7 + 2]]
+    first_line = fyp_yp * kron(gygy, gygy) + fyp_yo * kron(gygy, gy) + fyp_ym * kron(gygy, I(nvars))
+
+    # fyo_yp example: 2*7 seeks to the y_{t} derivatives section, 2*7+5 means y_{t}y_{t+1}
+    fyo_yp = [ FD[2][:, 2*7 + 5 : 2*7 + 6] FD[2][:, 3*7 + 5 : 3*7 + 6]]
+    fyo_yo = [ FD[2][:, 2*7 + 3 : 2*7 + 4] FD[2][:, 3*7 + 3 : 3*7 + 4]]
+    fyo_ym = [ FD[2][:, 2*7 + 1 : 2*7 + 2] FD[2][:, 3*7 + 1 : 3*7 + 2]]
+    second_line = fyo_yp * kron(gy, gygy) + fyo_yo * kron(gy, gy) + fyo_ym * kron(gy, I(nvars))   
+
+    fym_yp = [ FD[2][:, 0*7 + 5 : 0*7 + 6] FD[2][:, 1*7 + 5 : 1*7 + 6]]
+    fym_yo = [ FD[2][:, 0*7 + 3 : 0*7 + 4] FD[2][:, 1*7 + 3 : 1*7 + 4]]
+    fym_ym = [ FD[2][:, 0*7 + 1 : 0*7 + 2] FD[2][:, 1*7 + 1 : 1*7 + 2]]
+    third_line = fym_yp * kron(I(nvars), gygy) + fym_yo * kron(I(nvars), gy) + fym_ym
+
+    return first_line + second_line + third_line
+end
+
 order = 2
 endo_nbr = 2
 n_fwrd = 2
@@ -196,6 +226,8 @@ lmul!(-1,rhs)
 # select only endogenous state variables on the RHS
 #pane_copy!(rhs1, rhs, 1:nvar, 1:nvar, 1:nstate, 1:nstate, nstate, nstate + 2*nshock + 1, order)
 rhs1 = rhs[:, [1, 2, 4, 5]]
+Byy = rhs1 * -1 # undo that lmul for Byy check
+
 d = rhs1
 c = view(GD[1], state_index, 1:nstate)
 fill!(gs_ws.work1, 0.0)
@@ -259,6 +291,9 @@ end
     @test GD[2][:, k] ≈ gd_targets(ss, ϕ, 2)[2][:, k]
 end
 
+@testset "Byy check" begin
+    @test Byy_targets(ss, ϕ, order) ≈ Byy
+end
 
 
 
