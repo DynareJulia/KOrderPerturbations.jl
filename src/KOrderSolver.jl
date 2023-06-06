@@ -109,14 +109,9 @@ function make_gg!(gg,g,order,ws)
     @assert size(g[order],2) == ((ws.nvar + ws.nshock + 1)^order)
     pane_copy!(gg[order], g[order], ngg1, mgg1, nvar, 0, 0, order)  
     if order == 1
- #       vgg1 = view(gg[1], 1:ws.nvar, :)
- #       copyto!(vgg1, g[1])
-        for i = 1:ws.nshock
+        for i = 1:ws.nshock + 1
             gg[1][ws.nvar + i, ws.nvar + ws.nshock + i] = 1.0
         end
-        gg[1][end, end] = 1.0 
-    else
-        copyto!(gg[order], g[order])
     end
 end
 
