@@ -97,18 +97,20 @@ end
     function make_gg!(gg,g,order,ws)
 
 assembles the derivatives of function
-gg(y,u,ϵ,σ) = [g_state(y,u,σ); ϵ; σ] at  order 'order' 
-with respect to [y, u, σ, ϵ]
+gg(y_{t-1},u_t,ϵ_{t+1},σ) = [g(y_{t-1},u_t,σ); ϵ_{t+1}; σ] at  order 'order' 
+with respect to [y_{t-1}, u_t, σ, ϵ_{t+1}]
 """  
 function make_gg!(gg,g,order,ws)
-    ngg1 = ws.nvar + 2*ws.nshock + 1
-    mgg1 = ws.nvar + ws.nshock + 1
+    nvar = ws.nvar
+    nshock = ws.nshock
+    mgg1 = nvar + ws.nshock + 1
+    ngg1 = mgg1 + nshock
     @assert size(gg[order]) == (mgg1, ngg1^order)
-    @assert size(g[order],2) == ((ws.nvar + ws.nshock + 1)^order)    
-    @assert ws.state_range.stop <= size(g[order],1)
+    @assert size(g[order],2) == ((ws.nvar + ws.nshock + 1)^order)
+    pane_copy!(gg[order], g[order], ngg1, mgg1, nvar, 0, 0, order)  
     if order == 1
-        vgg1 = view(gg[1], 1:ws.nvar, :)
-        copyto!(vgg1, g[1])
+ #       vgg1 = view(gg[1], 1:ws.nvar, :)
+ #       copyto!(vgg1, g[1])
         for i = 1:ws.nshock
             gg[1][ws.nvar + i, ws.nvar + ws.nshock + i] = 1.0
         end
@@ -179,9 +181,37 @@ function update_hh!(hh, g, gg, order, ws)
                1:(ws.nstate+ws.nshock), ws.nstate + 2*ws.nshock + 1, ws.nstate + ws.nshock + 1, order)
 end
 
-#=
+#pane_copy!(gg[order], g[order], ngg1, mgg1, nvar, order)  
+    
+function pane_copy!(dest, src, d_cols, s_cols, nrows, offset_d, offset_s, order)
+    if order > 1
+        os = offset_s
+        od = offset_d
+        inc_d = d_cols^(order-1)
+        inc_s = s_cols^(order-1)
+        for i = 1:s_cols
+            pane_copy!(dest, src, d_cols, s_cols, nrows, od, os, order-1)
+            od += inc_d
+            os += inc_s
+        end
+    else
+        kd = offset_d + 1
+        ks = offset_s + 1
+        @inbounds for i = 1:s_cols
+            @simd for j = 1:nrows
+                x = src[j, i]
+                if x != 0
+                   dest[j, kd] = src[j, ks]
+                end 
+            end
+            kd += 1
+            ks += 1
+        end
+    end
+end
+
 function pane_copy!(dest, src, i_row_d, i_row_s, i_col_d, i_col_s,
-                      d_dim, s_dim, offset_d, offset_s, order)
+    d_dim, s_dim, offset_d, offset_s, order)
     nc = length(i_col_s)
     if order > 1
         os = offset_s
@@ -190,7 +220,7 @@ function pane_copy!(dest, src, i_row_d, i_row_s, i_col_d, i_col_s,
         inc_s = s_dim^(order-1)
         for i = 1:nc
             pane_copy!(dest, src, i_row_d, i_row_s, i_col_d, i_col_s,
-                       d_dim, s_dim, od, os, order-1)
+                 d_dim, s_dim, od, os, order-1)
             od += inc_d
             os += inc_s
         end
@@ -213,7 +243,6 @@ function pane_copy!(dest, src, i_row_d, i_row_s, i_col_d, i_col_s,
     pane_copy!(dest, src, i_row_d, i_row_s, i_col_d,
                i_col_s, d_dim, s_dim, offset_d, offset_s, order)
 end    
-=#
 
 function make_d1!(ws, order)
     inc1 = ws.nstate
