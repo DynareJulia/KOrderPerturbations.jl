@@ -349,7 +349,7 @@ function make_gs_su!(gs_su::AbstractArray, g::AbstractArray, nstate::Int64, nsho
 end
 
 function make_gykf_1!(gykf::AbstractArray, g::AbstractArray, rs::AbstractRange{Int64}, rd::AbstractRange{Int64}, n::Int64, inc::Int64, fwrd_index::Vector{Int64}, order::Int64)
-    @inbounds if order > 1
+    if order > 1
         rs_ = rs
         rd_ = rd
         inc1 = inc^(order-1)
@@ -360,6 +360,9 @@ function make_gykf_1!(gykf::AbstractArray, g::AbstractArray, rs::AbstractRange{I
             rd_ = rd_ .+ n1
         end
     else
+        # maybe this should be `v1 = view(g, :, rs)`, or fwrd_index should be replaced
+        #with something that returns [1,2] in case of Burnside (maybe 1:nfwrd)
+        # show(rs, rd, fwrd_index)
         v1 = view(g,fwrd_index, rs)
         v2 = view(gykf,:, rd)
         v2 .= v1
@@ -435,7 +438,8 @@ function compute_derivatives_wr_shocks!(ws::KOrderWs, f, g, order::Int64)
                    ws.nvar,(ws.nshock*(ws.nstate+ws.nshock))^(order-1))
     work1 = view(ws.work1,1:ws.nvar*(ws.nstate + ws.nshock + 1)^order)
     work2 = view(ws.work1,1:ws.nvar*(ws.nstate + ws.nshock + 1)^order)
-    a_mul_b_kron_c_d!(rhs1,fp,gykf,gu,ws.gs_su,order,work1,work2)
+    # a_mul_b_kron_c_d! cant deal with SparseMatrix
+    a_mul_b_kron_c_d!(rhs1,Matrix(fp),gykf,gu,ws.gs_su,order,work1,work2)
 
     rhs = reshape(view(ws.rhs,1:ws.nvar*(ws.nstate+2*ws.nshock+1)^order),
                   ws.nvar,(ws.nstate+2*ws.nshock+1)^order)
@@ -682,6 +686,8 @@ function k_order_solution!(g,f,moments,order,ws)
     store_results_1!(g[order], gs_ws_result, nstate, nshock, nvar, order)
 
     #derivatives w.r. y and u
+    ##sizes, mutations, and interactions of rhs, rhs1, ws.rhs, and ws.rhs1
+    ###is definitely not right. compute_der_shocks tries to use ws.rhs but it has not been mutated since initialization
 #    compute_derivatives_wr_shocks!(ws,f,g,order)
 #    store_results_2!(g[order], rhs1, nstate, nshock, order)
 #    make_gsk!(g, f, moments[2], a, rhs, rhs1,
