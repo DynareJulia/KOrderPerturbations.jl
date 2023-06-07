@@ -129,34 +129,96 @@ function gd_targets(ss, ϕ, order)
     return GD
 end
 
-"Compute Byy following the algebric solution in DynareJulia.pdf (2023)"
-function Byy_targets(ss, ϕ, order)
-    GD = g_derivatives(ss, ϕ, 2)
-    FD = f_derivatives(ss, ϕ, 2)
+"Compute Byy following the unrolled solution in DynareJulia.pdf (2023)"
+function Byy(GD, FD)
     gy = GD[1][:, 1:2]
-    nvars = size(gy, 2)
     gygy = gy*gy
+    nvars = size(gy, 2)
+    n = size(FD[1], 2)
 
     # f_{y₊y₊} = [yₜ₊₁yₜ₊₁ yₜ₊₁xₜ₊₁ xₜ₊₁yₜ₊₁ xₜ₊₁xₜ₊₁]
     # f_{y₊yo} = [yₜ₊₁yₜ   yₜ₊₁xₜ   xₜ₊₁yₜ   xₜ₊₁xₜ  ]
     # f_{y₊y₋} = [yₜ₊₁yₜ-₁ yₜ₊₁xₜ-₁ xₜ₊₁yₜ-₁ xₜ₊₁xₜ-₁]
-    fyp_yp = [ FD[2][:, 4*7 + 5 : 4*7 + 6] FD[2][:, 5*7 + 5 : 5*7 + 6]]
-    fyp_yo = [ FD[2][:, 4*7 + 3 : 4*7 + 4] FD[2][:, 5*7 + 3 : 5*7 + 4]]
-    fyp_ym = [ FD[2][:, 4*7 + 1 : 4*7 + 2] FD[2][:, 5*7 + 1 : 5*7 + 2]]
+    fyp_yp = [ FD[2][:, 4n + 5 : 4n + 6] FD[2][:, 5n + 5 : 5n + 6] ]
+    fyp_yo = [ FD[2][:, 4n + 3 : 4n + 4] FD[2][:, 5n + 3 : 5n + 4] ]
+    fyp_ym = [ FD[2][:, 4n + 1 : 4n + 2] FD[2][:, 5n + 1 : 5n + 2] ]
     first_line = fyp_yp * kron(gygy, gygy) + fyp_yo * kron(gygy, gy) + fyp_ym * kron(gygy, I(nvars))
 
-    # fyo_yp example: 2*7 seeks to the y_{t} derivatives section, 2*7+5 means y_{t}y_{t+1}
-    fyo_yp = [ FD[2][:, 2*7 + 5 : 2*7 + 6] FD[2][:, 3*7 + 5 : 3*7 + 6]]
-    fyo_yo = [ FD[2][:, 2*7 + 3 : 2*7 + 4] FD[2][:, 3*7 + 3 : 3*7 + 4]]
-    fyo_ym = [ FD[2][:, 2*7 + 1 : 2*7 + 2] FD[2][:, 3*7 + 1 : 3*7 + 2]]
+    # fyo_yp example: 2n seeks to the y_{t} derivatives section, 2 n+5 means y_{t}y_{t+1}
+    fyo_yp = [ FD[2][:, 2n + 5 : 2n + 6] FD[2][:, 3n + 5 : 3n + 6] ]
+    fyo_yo = [ FD[2][:, 2n + 3 : 2n + 4] FD[2][:, 3n + 3 : 3n + 4] ]
+    fyo_ym = [ FD[2][:, 2n + 1 : 2n + 2] FD[2][:, 3n + 1 : 3n + 2] ]
     second_line = fyo_yp * kron(gy, gygy) + fyo_yo * kron(gy, gy) + fyo_ym * kron(gy, I(nvars))   
 
-    fym_yp = [ FD[2][:, 0*7 + 5 : 0*7 + 6] FD[2][:, 1*7 + 5 : 1*7 + 6]]
-    fym_yo = [ FD[2][:, 0*7 + 3 : 0*7 + 4] FD[2][:, 1*7 + 3 : 1*7 + 4]]
-    fym_ym = [ FD[2][:, 0*7 + 1 : 0*7 + 2] FD[2][:, 1*7 + 1 : 1*7 + 2]]
+    fym_yp = [ FD[2][:, 0n + 5 : 0n + 6] FD[2][:, 1n + 5 : 1n + 6] ]
+    fym_yo = [ FD[2][:, 0n + 3 : 0n + 4] FD[2][:, 1n + 3 : 1n + 4] ]
+    fym_ym = [ FD[2][:, 0n + 1 : 0n + 2] FD[2][:, 1n + 1 : 1n + 2] ]
     third_line = fym_yp * kron(I(nvars), gygy) + fym_yo * kron(I(nvars), gy) + fym_ym
 
     return first_line + second_line + third_line
+end
+
+function Byu(GD, FD)
+    n = size(FD[1], 2)
+    gy = GD[1][:, 1:2]
+    gu = GD[1][:, 3] #[dg/dϵ]
+    gygy = gy*gy
+    gygu = gy*gu
+    gy_y = [GD[2][:, 1:2] GD[2][:, 5:6]]
+    @assert !iszero(gy_y) "gy_y is all zeros. Make sure GD have 2nd order derivatives populated"
+
+    fyp_yp = [ FD[2][:, 4n + 5 : 4n + 6] FD[2][:, 5n + 5 : 5n + 6] ]
+    fyp_yo = [ FD[2][:, 4n + 3 : 4n + 4] FD[2][:, 5n + 3 : 5n + 4] ]
+    
+    fyo_yp = [ FD[2][:, 2n + 5 : 2n + 6] FD[2][:, 3n + 5 : 3n + 6] ]
+    fyo_yo = [ FD[2][:, 2n + 3 : 2n + 4] FD[2][:, 3n + 3 : 3n + 4] ]
+    
+    fym_yp = [ FD[2][:, 0n + 5 : 0n + 6] FD[2][:, 1n + 5 : 1n + 6] ]
+    fym_yo = [ FD[2][:, 0n + 3 : 0n + 4] FD[2][:, 1n + 3 : 1n + 4] ]
+    
+    fyp_u = [ FD[2][:, 4n + 7] FD[2][:, 5n + 7] ]
+    fyo_u = [ FD[2][:, 2n + 7] FD[2][:, 3n + 7] ]
+    fym_u = [ FD[2][:, 0n + 7] FD[2][:, 1n + 7] ]
+
+    Byu = FD[1][:, 5:6] * gy_y * kron(gy, gu) 
+    Byu += fyp_yp * kron(gygy, gygu) + fyp_yo* kron(gygy, gu)  +  fyp_u * kron(gygy, I(1))
+    Byu += fyo_yp * kron(gy, gygu) + fyo_yo * kron(gy, gu) + fyo_u * kron(gy, I(1))
+    Byu += fym_yp * kron(I(2), gygu) + fym_yo * kron(I(2), gu) + fym_u
+    return Byu
+end
+
+function Buu(GD, FD)
+    n = size(FD[1], 2)
+    gy = GD[1][:, 1:2]
+    gu = GD[1][:, 3]
+    gygu = gy*gu
+    gy_y = [GD[2][:, 1:2] GD[2][:, 5:6]]
+    @assert !iszero(gy_y) "gy_y is all zeros. Make sure GD have 2nd order derivatives populated"
+
+    fyp_yp = [ FD[2][:, 4n + 5 : 4n + 6] FD[2][:, 5n + 5 : 5n + 6] ]
+    fyp_yo = [ FD[2][:, 4n + 3 : 4n + 4] FD[2][:, 5n + 3 : 5n + 4] ]
+    fyp_u =  [ FD[2][:, 4n + 7] FD[2][:, 5n + 7] ]
+
+    fyo_yp = [ FD[2][:, 2n + 5 : 2n + 6] FD[2][:, 3n + 5 : 3n + 6] ]
+    fyo_yo = [ FD[2][:, 2n + 3 : 2n + 4] FD[2][:, 3n + 3 : 3n + 4] ]
+    fyo_u =  [ FD[2][:, 2n + 7] FD[2][:, 3n + 7] ]
+    fu_u = FD[2][:, 6n + 7]
+
+    Buu = FD[1][:, 5:6] * gy_y * kron(gu, gu)
+    Buu += fyp_yp * kron(gygu, gygu) + fyp_yo * kron(gygu, gu) + fyp_u * kron(gygu, I(1))
+    Buu += fyo_yp * kron(gu, gygu) + fyo_yo * kron(gu, gu) + fyo_u * kron(gu, I(1))
+    Buu += fu_u
+    return Buu
+end
+
+function Bσσ(GD, FD)
+    n = size(FD[1], 2)
+    ∑σσ = SDϵ^2
+    gu = GD[1][:, 3]
+    gu_u = GD[2][:, 11]
+    fyp_yp = [ FD[2][:, 4n + 5 : 4n + 6] FD[2][:, 5n + 5 : 5n + 6] ]
+    Bσσ = (fyp_yp * kron(gu, gu) + FD[1][:, 5:6]*gu_u) * ∑σσ
+    return Bσσ
 end
 
 order = 2
@@ -183,7 +245,6 @@ nshock = ws.nshock
 nvar2 = ws.nvar*ws.nvar
 gg = ws.gg
 hh = ws.hh
-@show size(ws.rhs)
 rhs = reshape(view(ws.rhs,1:ws.nvar*(ws.nvar + 1)^order),
 ws.nvar, (ws.nvar + 1)^order)
 #rhs1 = reshape(view(ws.rhs1,1:ws.nvar*nstate^order),
@@ -226,9 +287,7 @@ lmul!(-1,rhs)
 # select only endogenous state variables on the RHS
 #pane_copy!(rhs1, rhs, 1:nvar, 1:nvar, 1:nstate, 1:nstate, nstate, nstate + 2*nshock + 1, order)
 rhs1 = rhs[:, [1, 2, 4, 5]]
-Byy = rhs1 * -1 # undo that lmul for Byy check
-
-d = rhs1
+d = copy(rhs1)
 c = view(GD[1], state_index, 1:nstate)
 fill!(gs_ws.work1, 0.0)
 fill!(gs_ws.work2, 0.0)
@@ -238,6 +297,7 @@ KOrderPerturbations.generalized_sylvester_solver!(a,b,c,d,order,gs_ws)
 
 KOrderPerturbations.k_order_solution!(GD, FD, moments[1:order], order, ws) 
 
+@testset verbose=true begin
 @testset "steady state" begin
     @test ss[1] ≈ β*exp(θ*ss[2])*(1 + ss[1])
     @test ss[2] ≈ (1 - ρ)*ss[2] + ρ*ss[2]
@@ -292,9 +352,12 @@ end
 end
 
 @testset "Byy check" begin
-    @test Byy_targets(ss, ϕ, order) ≈ Byy
+    Byy_KOrder = rhs1 * -1 # undo that useless lmul
+    @test Byy_KOrder ≈ Byy(GD, FD)
 end
 
+return nothing
+end
 
 
 
