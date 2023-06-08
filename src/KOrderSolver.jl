@@ -638,8 +638,8 @@ function k_order_solution!(g,f,moments,order,ws)
     nvar2 = ws.nvar*ws.nvar
     gg = ws.gg
     hh = ws.hh
-    rhs = reshape(view(ws.rhs,1:ws.nvar*(ws.nvar + 1)^order),
-                  ws.nvar, (ws.nvar + 1)^order)
+    rhs = reshape(view(ws.rhs,1:ws.nvar*(ws.nvar + 2*ws.nshock + 1)^order),
+                  ws.nvar, (ws.nvar + 2*ws.nshock + 1)^order)
     #rhs1 = reshape(view(ws.rhs1,1:ws.nvar*nstate^order),
     #               ws.nvar, nstate^order)
     faa_di_bruno_ws_1 = ws.faa_di_bruno_ws_1
@@ -666,11 +666,9 @@ function k_order_solution!(g,f,moments,order,ws)
         make_a!(a, f, g, ncur, cur_index, nvar, nstate, nfwrd, fwrd_index, state_index)
         ns = nvar + nshock
         # TO BE FIXED !!!
-        hhh1 = Matrix(hh[1][:, 1:ns])
-        hhh2 = Matrix(hh[2][:, 1:ns*ns])
-        hhh = [hhh1, hhh2 ]
-        rhs = zeros(nvar, ns*ns)
-        partial_faa_di_bruno!(rhs, f, hhh, order, faa_di_bruno_ws_2)
+        hhh = [Matrix(hh[1]), Matrix(hh[2]) ]
+        ff = [Matrix(f[1]), Matrix(f[2])]
+        partial_faa_di_bruno!(rhs, ff, hhh, order, faa_di_bruno_ws_2)
         b .= view(f[1], :, 2*nvar .+ (1:nvar))
     else
         make_hh!(hh, g, gg, order, ws)
@@ -679,7 +677,7 @@ function k_order_solution!(g,f,moments,order,ws)
     lmul!(-1,rhs)
     # select only endogenous state variables on the RHS
     #pane_copy!(rhs1, rhs, 1:nvar, 1:nvar, 1:nstate, 1:nstate, nstate, nstate + 2*nshock + 1, order)
-    rhs1 = rhs[:, [1, 2, 4, 5]]
+    rhs1 = rhs[:, [1, 2, 6, 7]]
     d = rhs1
     c = view(g[1],state_index,1:nstate)
     fill!(gs_ws.work1, 0.0)
@@ -692,7 +690,7 @@ function k_order_solution!(g,f,moments,order,ws)
     #derivatives w.r. y and u
     ##sizes, mutations, and interactions of rhs, rhs1, ws.rhs, and ws.rhs1
     ###is definitely not right. compute_der_shocks tries to use ws.rhs but it has not been mutated since initialization
-#    compute_derivatives_wr_shocks!(ws,f,g,order)
+    #compute_derivatives_wr_shocks!(ws,f,g,order)
 #    store_results_2!(g[order], rhs1, nstate, nshock, order)
 #    make_gsk!(g, f, moments[2], a, rhs, rhs1,
 #              nfwrd, nstate, nvar, ncur, nshock,
