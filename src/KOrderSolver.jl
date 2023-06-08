@@ -119,7 +119,7 @@ end
     function update_gg_s!(gg,g,order,ws)
 
 updates the derivatives of function
-gg(y,u,ϵ,σ) = [g_state(y,u,σ); ϵ; σ] after computation of g_s at order 'order' 
+gg(y,u,ϵ,σ) = [g(y,u,σ); ϵ; σ] after computation of g_s at order 'order' 
 with respect to [y, u, ϵ]
 """  
 function update_gg_1!(gg,g,order,ws)
@@ -132,31 +132,35 @@ end
 """
     function make_hh!(hh, g, gg, order, ws)
 computes and assembles derivatives of function
-    hh(y,u,σ,ϵ) = [y_s; g(y_s,u,σ); g_fwrd(g_state(y_s,u,σ),ϵ,σ); u]
-with respect to [y_s, u, σ, ϵ]
+    hh(y,u,σ,ϵ) = [y_s; g(y_s,u,σ); g(gg(y_s,u,ϵ,σ)); u]
+with respect to [y_s, u, σ, ϵ]. Note that g_σ = 0.
 """  
 function  make_hh!(hh, g, gg, order, ws)
     if order == 1
-        for i = 1:ws.nstate + ws.nshock
+        for i in ws.state_index
             hh[1][i,i] = 1.0
         end
-        vh1 = view(hh[1],ws.nvar .+ (1:ws.nvar),1:(ws.nvar+ ws.nshock + 1))
-        copyto!(vh1,g[1])
-        n = ws.nstate + ws.nshock + 1
-        vh2 = view(hh[1],2*ws.nvar .+ (1:ws.nvar), :)
+        for i = 1:ws.nvar + ws.nshock
+            for j = 1:ws.nvar
+                hh[1][ws.nvar + j, i] = g[1][j, i]
+            end
+        end
+        vh2 = view(hh[1], 2*ws.nvar .+ (1:ws.nvar), :)
         mul!(vh2, g[1], gg[1])
-        row = ws.nstate + ws.nvar + ws.nfwrd 
-        col = ws.nstate
+        row = 3*ws.nvar
+        col = ws.nvar
         for i = 1:ws.nshock
             hh[1][row + i, col + i] = 1.0
         end
     else
-        # derivatives of g() for forward looking variables
-        copyto!(ws.gfwrd[order-1],view(g[order-1],ws.fwrd_index,:))
         # derivatives for g(g(y,u,σ),ϵ,σ)
-        vh1 = view(hh[order],ws.nstate + ws.ncur .+ (1:ws.nfwrd),:)
-        partial_faa_di_bruno!(vh1, ws.gfwrd, gg, order, ws.faa_di_bruno_ws_1)
-        pane_copy!(hh[order-1], g[order-1], ws.nstate .+ ws.cur_index, ws.cur_index, 1:ws.nstate, 1:ws.nstate, ws.nstate, ws.nstate + 2*ws.nshock + 1, order-1)
+        vh1 = view(hh[order],ws.nvar .+ (1:ws.nvar),:)
+        pane_copy!(vh1, g[order],
+                   ws.nvar + 2*ws.nshock + 1,
+                   ws.nvar + ws.shock + 1, ws.nvar, 0, 0, order)
+        # derivatives for g(g(y,u,σ),ϵ,σ)
+        vh2 = view(hh[order],2*ws.nvar .+ (1:ws.nvar),:)
+        partial_faa_di_bruno!(vh2, g, gg, order, ws.faa_di_bruno_ws_1)
     end        
 end
     

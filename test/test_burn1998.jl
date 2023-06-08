@@ -328,6 +328,21 @@ end
                         hcat(zeros(1, 4), 1))
     @test gg[1] ≈  gg1_target
 end
+
+@testset "hh" begin
+    d1 = zeros(nvar)
+    d1[ws.state_index] .= 1
+    hh_1 = diagm(nvar, nvar +2*nshock +1, d1)
+    hh_target = vcat(hh_1,
+                     hcat(GD[1], zeros(nvar, nshock)),
+                     GD[1]*gg[1],
+                     hcat(zeros(nshock, nvar), I(nshock),
+                          zeros(nshock, nshock + 1)))
+    @show size(hh[1])
+    @show size(hh_target)                      
+    @test hh[1] ≈ hh_target
+end
+    
 @testset "make_a" begin
     @test a ≈ FD[1][:, 5:6]*GD[1][:,1:2] + FD[1][:,3:4]
 end 
