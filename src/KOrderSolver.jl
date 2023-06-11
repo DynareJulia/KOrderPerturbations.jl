@@ -1,6 +1,3 @@
-module KOrderSolver
-
-# using model
 using KroneckerTools
 using FastLapackInterface
 using LinearAlgebra
@@ -46,26 +43,26 @@ mutable struct KOrderWs
     work2::Vector{Float64}
     faa_di_bruno_ws_1::FaaDiBrunoWs
     faa_di_bruno_ws_2::FaaDiBrunoWs
-    linsolve_ws_1::LUWs
+    luws::LUWs
     gs_ws::GeneralizedSylvesterWs
     function KOrderWs(nvar,nfwrd,nstate,ncur,nshock,fwrd_index,state_index,
                       cur_index,state_range,order)
-        ngcol = nstate + nshock + 1
-        nhcol = ngcol + nshock
+        ngcol = nstate + 2*nshock + 1
+        nhcol = ngcol
         nhrow = nfwrd+nvar+nstate+nshock
         nng = [ngcol^i for i = 1:(order-1)]
-        nnh = [nhcol^i for i = 1:(order-1)]
+        nnh = [ngcol^i for i = 1:(order-1)]
         gfwrd = [zeros(nfwrd,nstate^i) for i = 1:order]
-        gg = [zeros(nfwrd,ngcol^i) for i = 1:order]
-        hh = [zeros(nhrow, nhcol^i) for i = 1:order]
+        gg = [zeros(nstate + nshock + 1,ngcol^i) for i = 1:order]
+        hh = [zeros(nhrow, ngcol^i) for i = 1:order]
         gci = [CartesianIndices(gg[i]) for i = 1:order]
         hci = [CartesianIndices(hh[i]) for i = 1:order]
         my = [zeros(ncur+nstate, nstate^i) for i = 1:order]
         zy = [zeros(nfwrd+ncur+nstate, (ncur+nstate)^i) for i = 1:order]
         dy = [zeros(ncur, nstate^i) for i = 1:order]
-        faa_di_bruno_ws_1 = FaaDiBrunoWs(nfwrd, nhcol, nhcol, order)
-        faa_di_bruno_ws_2 = FaaDiBrunoWs(nvar, nhrow, nhcol, order)
-        linsolve_ws_1 = LUWs(nvar)
+        faa_di_bruno_ws_1 = FaaDiBrunoWs(nfwrd, nhrow, nhrow, order)
+        faa_di_bruno_ws_2 = FaaDiBrunoWs(nvar, nhrow, nhrow, order)
+        luws = LUWs(nvar)
         rhs = zeros(nvar*nhcol^order)
         rhs1 = zeros(nvar*max(nvar^order,nshock*(nstate+nshock)^(order-1)))
         gykf = zeros(nfwrd*nstate^order)
@@ -81,7 +78,7 @@ mutable struct KOrderWs
             nng, nnh, gci, hci, fwrd_index, state_index, cur_index,
             state_range, gfwrd, gg, hh, rhs, rhs1, my, zy, dy, gykf,
             gs_su, a, a1, b, c, work1, work2, faa_di_bruno_ws_1,
-            faa_di_bruno_ws_2, linsolve_ws_1, gs_ws)
+            faa_di_bruno_ws_2, luws, gs_ws)
     end
 end
 
@@ -108,8 +105,12 @@ function make_gg!(gg,g,order,ws)
     @assert size(g[order],2) == (ws.nstate + ws.nshock + 1)^order
     @assert ws.state_range.stop <= size(g[order],1)
     if order == 1
-        vg1 = view(g[1], ws.state_index, :)
-        copyto!(gg[1], vg1)
+        for i = 1:ws.nstate + ws.nshock
+            for j = 1:ws.nstate
+                j1 = ws.state_index[j]
+                gg[1][j, i] = g[1][j1, i]
+            end
+        end 
         for i = 1:ws.nshock
             gg[1][ws.nstate + i, ws.nstate + ws.nshock + 1 + i] = 1.0
         end
@@ -182,7 +183,6 @@ function update_hh!(hh, g, gg, order, ws)
                1:(ws.nstate+ws.nshock), ws.nstate + 2*ws.nshock + 1, ws.nstate + ws.nshock + 1, order)
 end
 
-#=
 function pane_copy!(dest, src, i_row_d, i_row_s, i_col_d, i_col_s,
                       d_dim, s_dim, offset_d, offset_s, order)
     nc = length(i_col_s)
@@ -216,7 +216,6 @@ function pane_copy!(dest, src, i_row_d, i_row_s, i_col_d, i_col_s,
     pane_copy!(dest, src, i_row_d, i_row_s, i_col_d,
                i_col_s, d_dim, s_dim, offset_d, offset_s, order)
 end    
-=#
 
 function make_d1!(ws, order)
     inc1 = ws.nstate
@@ -253,7 +252,7 @@ function make_a!(a::Matrix{Float64}, f::Vector{Matrix{Float64}},
                  fwrd_index::Vector{Int64},
                  state_index::Vector{Int64})
     
-    so = nstate*nvar + 1
+    so = nvar*nvar + 1
     @inbounds for i=1:ncur
         copyto!(a,(cur_index[i]-1)*nvar+1,f[1],so,nvar)
         so += nvar
@@ -262,7 +261,7 @@ function make_a!(a::Matrix{Float64}, f::Vector{Matrix{Float64}},
         for j=1:nvar
             x = 0.0
             @simd for k=1:nfwrd
-                x += f[1][j, nstate + ncur + k]*g[1][fwrd_index[k], i]
+                x += f[1][j, nvar + ncur + k]*g[1][fwrd_index[k], i]
             end
             a[j,state_index[i]] += x
         end
@@ -350,7 +349,11 @@ function make_gykf_1!(gykf::AbstractArray, g::AbstractArray, rs::AbstractRange{I
             rd_ = rd_ .+ n1
         end
     else
+        @show g
+        @show fwrd_index
+        @show rs
         v1 = view(g,fwrd_index, rs)
+        @show v1
         v2 = view(gykf,:, rd)
         v2 .= v1
     end
@@ -426,11 +429,17 @@ function compute_derivatives_wr_shocks!(ws::KOrderWs, f, g, order::Int64)
     work1 = view(ws.work1,1:ws.nvar*(ws.nstate + ws.nshock + 1)^order)
     work2 = view(ws.work1,1:ws.nvar*(ws.nstate + ws.nshock + 1)^order)
     a_mul_b_kron_c_d!(rhs1,fp,gykf,gu,ws.gs_su,order,work1,work2)
-
+    @show (rhs1 - fp*gykf*kron(gu, ws.gs_su))
+        
     rhs = reshape(view(ws.rhs,1:ws.nvar*(ws.nstate+2*ws.nshock+1)^order),
                   ws.nvar,(ws.nstate+2*ws.nshock+1)^order)
+    @show rhs
+    rhs1_old = copy(rhs1)
     make_rhs_2!(rhs1, rhs, ws.nstate, ws.nshock, ws.nvar)
-    linsolve_core!(ws.linsolve_ws_1,Ref{UInt8}('N'),ws.a,rhs1)
+    @show (rhs1 + rhs1_old - rhs[:, 2:3])
+    lua = LU(factorize!(ws.luws, copy(ws.a))...)
+    ldiv!(lua, rhs1)
+    @show rhs1
 end
 
 function store_results_2_1(results::AbstractArray, r::AbstractArray, index::Vector{Int64},
@@ -620,8 +629,8 @@ function k_order_solution!(g,f,moments,order,ws)
     nshock = ws.nshock
     gg = ws.gg
     hh = ws.hh
-    rhs = reshape(view(ws.rhs,1:ws.nvar*(nstate+2*nshock+1)^order),
-                  ws.nvar, (nstate+2*nshock+1)^order)
+    rhs = reshape(view(ws.rhs,1:ws.nvar*(nstate+nshock)^order),
+                  ws.nvar, (nstate + nshock)^order)
     rhs1 = reshape(view(ws.rhs1,1:ws.nvar*nstate^order),
                    ws.nvar, nstate^order)
     faa_di_bruno_ws_1 = ws.faa_di_bruno_ws_1
@@ -634,7 +643,7 @@ function k_order_solution!(g,f,moments,order,ws)
     nvar = ws.nvar
     a = ws.a
     b = ws.b
-    linsolve_ws = ws.linsolve_ws_1
+    luws = ws.luws
     work1 = ws.work1
     work2 = ws.work2
     ws.gs_ws = GeneralizedSylvesterWs(nvar,nvar,nstate,order)
@@ -645,7 +654,13 @@ function k_order_solution!(g,f,moments,order,ws)
     if order == 2
         make_hh!(hh, g, gg, 1, ws)
         make_a!(a, f, g, ncur, cur_index, nvar, nstate, nfwrd, fwrd_index, state_index)
-        partial_faa_di_bruno!(rhs,f,hh,order,faa_di_bruno_ws_2)
+        nns1 = nstate + 2*nshock + 1
+        k = reshape(1:nns1^2, nns1, nns1)
+        ns = nstate + nshock
+        kk = vec(k[1:ns, 1:ns])
+        hhh = [hh[1][:, 1:(nstate + nshock)],
+               hh[2][:, kk]]
+        partial_faa_di_bruno!(rhs,f,hhh,order,faa_di_bruno_ws_2)
         make_b!(b, f, ws)
     else
         make_hh!(hh, g, gg, order, ws)
@@ -654,7 +669,7 @@ function k_order_solution!(g,f,moments,order,ws)
     lmul!(-1,rhs)
     # select only endogenous state variables on the RHS
     pane_copy!(rhs1, rhs, 1:nvar, 1:nvar, 1:nstate, 1:nstate, nstate, nstate + 2*nshock + 1, order)
-    d = vec(rhs1)
+    d = rhs1
     c = view(g[1],state_index,1:nstate)
     generalized_sylvester_solver!(a,b,c,d,order,gs_ws)
     store_results_1!(g[order], gs_ws_result, nstate, nshock, nvar, order)
@@ -665,4 +680,3 @@ function k_order_solution!(g,f,moments,order,ws)
 #              fwrd_index, linsolve_ws, work1, work2)
 end
 
-end

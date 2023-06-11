@@ -4,8 +4,10 @@
 #   x_t = (1 - ρ) xbar + ρ x_{t-1} + u_t
 #
 
+using FastLapackInterface
 using ForwardDiff
 using KOrderPerturbations
+using KroneckerTools
 using LinearAlgebra
 using SparseArrays
 using Test
@@ -77,61 +79,60 @@ end
 g_derivatives(ss, ϕ, order)
 
 returns a vector of order matrices containing the partial derivatives of the solution of the model at each order
-The variables are [y_{t-1}, x_{t-1}, u_t, σ]
+The variables are [x_{t-1}, u_t, σ]
 2nd derivatives
-[
-y_{t-1}y_{t-1} y_{t-1}x_{t-1}, y_{t-1}u_t, y_{t-1}σ,
-x_{t-1}y_{t-1} x_{t-1}x_{t-1}, x_{t-1}u_t, x_{t-1}σ,
-u_ty_{t-1} u_tx_{t-1}, u_tu_t, u_tσ,
-σy_{t-1} σx_{t-1}, σu_t, σσ]
+[x_{t-1}x_{t-1}, x_{t-1}u_t, x_{t-1}σ,
+u_tx_{t-1}, u_tu_t, u_tσ,
+σx_{t-1}, σu_t, σσ]
 
 See DynareJulia.pdf (2023)
 """
 function g_derivatives(ss, ϕ, order)
     xbar, β, θ, ρ = ϕ
-    GD = [spzeros(2, 4^i) for i=1:order]
+    GD = [zeros(2, 3^i) for i=1:order]
     
     # order = 1
     M1 = β*θ*ρ*exp(θ*xbar)/(1 - ρ)
     # w.r. u_t
-    GD[1][1, 3] = M1*(1/(1 - β*exp(θ*xbar)) - ρ/(1 - β*ρ*exp(θ*xbar)))
-    GD[1][2, 3] = 1
+    GD[1][1, 2] = M1*(1/(1 - β*exp(θ*xbar)) - ρ/(1 - β*ρ*exp(θ*xbar)))
+    GD[1][2, 2] = 1
     # w.r. x_{t-1}
-    GD[1][1, 2] = ρ*GD[1][1, 3]
-    GD[1][2, 2] = ρ
+    GD[1][1, 1] = ρ*GD[1][1, 2]
+    GD[1][2, 1] = ρ
     
     return GD
 end
 
 function gd_targets(ss, ϕ, order)
     xbar, β, θ, ρ = ϕ
-    GD = [zeros(2, 4^i) for i=1:order]
+    GD = [zeros(2, 3^i) for i=1:order]
     
     # order = 1
     M1 = β*θ*ρ*exp(θ*xbar)/(1 - ρ)
     # w.r. u_t
-    GD[1][1, 3] = M1 * (1/(1 - β*exp(θ*xbar)) - ρ/(1 - β*ρ*exp(θ*xbar)))
-    GD[1][2, 3] = 1
+    GD[1][1, 2] = M1 * (1/(1 - β*exp(θ*xbar)) - ρ/(1 - β*ρ*exp(θ*xbar)))
+    GD[1][2, 2] = 1
     # w.r. x_{t-1}
-    GD[1][1, 2] = ρ * GD[1][1, 3]
-    GD[1][2, 2] = ρ
+    GD[1][1, 1] = ρ * GD[1][1, 3]
+    GD[1][2, 1] = ρ
     if order > 1
         # order 2
         M2 = θ*ρ/(1 - ρ)*M1
         # w.r. u_t*u_t
-        GD[2][1, 2*4 + 3] = M2 * (1/(1 - β*exp(θ*xbar)) - 2*ρ/(1 - β*ρ*exp(θ*xbar)) + ρ^2/(1 - β*ρ^2*exp(θ*xbar)))
+        GD[2][1, 3 + 2] = M2 * (1/(1 - β*exp(θ*xbar)) - 2*ρ/(1 - β*ρ*exp(θ*xbar)) + ρ^2/(1 - β*ρ^2*exp(θ*xbar)))
         # w.r. x_{t-1}*x_{t-1}
-        GD[2][1, 4 + 2] = ρ^2 * GD[2][1, 2*4 + 3]
+        GD[2][1, 1] = ρ^2 * GD[2][1, 3 + 2]
         # w.r. x_{t-1}*u_{t-1}
-        GD[2][1, 4 + 3] = ρ * GD[2][1, 2*4 + 3]
-        GD[2][1, 2*4 + 2] = GD[2][1, 4 + 3]
+        GD[2][1, 2] = ρ * GD[2][1, 3 + 2]
+        GD[2][1, 3 + 1] = GD[2][1, 2]
     end
     return GD
 end
 
 "Compute Byy following the unrolled solution in DynareJulia.pdf (2023)"
 function Byy(GD, FD)
-    gy = GD[1][:, 1:2]
+    gy = zeros(2 ,2)
+    gy[:, 2] = GD[1][:, 1]
     gygy = gy*gy
     nvars = size(gy, 2)
     n = size(FD[1], 2)
@@ -160,11 +161,13 @@ end
 
 function Byu(GD, FD)
     n = size(FD[1], 2)
-    gy = GD[1][:, 1:2]
-    gu = GD[1][:, 3] #[dg/du]
+    gy = zeros(2, 2)
+    gy[:, 2] = GD[1][:, 1]
+    gu = GD[1][:, 2] #[dg/du]
     gygy = gy*gy
     gygu = gy*gu
-    gy_y = [GD[2][:, 1:2] GD[2][:, 5:6]]
+    gy_y = zeros(2, 4)
+    gy_y[:, 4] = GD[2][:, 1]
     @assert !iszero(gy_y) "gy_y is all zeros. Make sure GD have 2nd order derivatives populated"
 
     fyp_yp = [ FD[2][:, 4n + 5 : 4n + 6] FD[2][:, 5n + 5 : 5n + 6] ]
@@ -189,10 +192,12 @@ end
 
 function Buu(GD, FD)
     n = size(FD[1], 2)
-    gy = GD[1][:, 1:2]
-    gu = GD[1][:, 3]
+    gy = zeros(2, 2)
+    gy[:, 2] = GD[1][:, 1]
+    gu = GD[1][:, 2]
     gygu = gy*gu
-    gy_y = [GD[2][:, 1:2] GD[2][:, 5:6]]
+    gy_y = zeros(2, 4)
+    gy_y[:, 4] = GD[2][:, 1]
     @assert !iszero(gy_y) "gy_y is all zeros. Make sure GD have 2nd order derivatives populated"
 
     fyp_yp = [ FD[2][:, 4n + 5 : 4n + 6] FD[2][:, 5n + 5 : 5n + 6] ]
@@ -214,8 +219,8 @@ end
 function Bσσ(GD, FD)
     n = size(FD[1], 2)
     ∑σσ = SDu^2
-    gu = GD[1][:, 3]
-    gu_u = GD[2][:, 11]
+    gu = GD[1][:, 2]
+    gu_u = GD[2][:, 5]
     fyp_yp = [ FD[2][:, 4n + 5 : 4n + 6] FD[2][:, 5n + 5 : 5n + 6] ]
     Bσσ = (fyp_yp * kron(gu, gu) + FD[1][:, 5:6]*gu_u) * ∑σσ
     return Bσσ
@@ -224,151 +229,218 @@ end
 order = 2
 endo_nbr = 2
 n_fwrd = 2
-n_states = 2
+n_states = 1
 n_current = 2
 n_shocks = 1
-i_fwrd = [5, 6]
-i_bkwrd = [1, 2]
-i_current = [3, 4]
-state_range = 1:2
-ws = KOrderPerturbations.KOrderWs(endo_nbr, n_fwrd, n_states, n_current,
-n_shocks, i_fwrd, i_bkwrd,
-i_current, state_range, order)
+i_fwrd = [1, 2]
+i_bkwrd = [2]
+i_current = [1, 2]
+i_state = [2]
+state_range = 1:1
+ws = KOrderPerturbations.KOrderWs(endo_nbr, n_fwrd, n_states, n_current, n_shocks, i_fwrd, i_bkwrd,
+                                  i_current , state_range, order)
 moments = [0, SDu^2, 0, 3*SDu^4]
 
 ss = steady_state(ϕ)
-FD = f_derivatives(ss, ϕ, 2)
-GD = g_derivatives(ss, ϕ, 2)
-
-nstate = ws.nstate
-nshock = ws.nshock
-nvar2 = ws.nvar*ws.nvar
-gg = ws.gg
-hh = ws.hh
-rhs = reshape(view(ws.rhs,1:ws.nvar*(ws.nvar + 1)^order),
-ws.nvar, (ws.nvar + 1)^order)
-#rhs1 = reshape(view(ws.rhs1,1:ws.nvar*nstate^order),
-#               ws.nvar, nstate^order)
-faa_di_bruno_ws_1 = ws.faa_di_bruno_ws_1
-faa_di_bruno_ws_2 = ws.faa_di_bruno_ws_2
-nfwrd = ws.nfwrd
-fwrd_index = ws.fwrd_index
-state_index = ws.state_index
-ncur = ws.ncur
-cur_index = ws.cur_index
-nvar = ws.nvar
-a = ws.a
-b = ws.b
-linsolve_ws = ws.linsolve_ws_1
-work1 = ws.work1
-work2 = ws.work2
-ws.gs_ws = KOrderPerturbations.GeneralizedSylvesterWs(nvar,nvar,nvar,order)
-gs_ws = ws.gs_ws
-gs_ws_result = gs_ws.result
-
-# derivatives w.r. y
-KOrderPerturbations.make_gg!(gg, GD, order-1, ws)
-if order == 2
-    KOrderPerturbations.make_hh!(hh, GD, gg, 1, ws)
-    KOrderPerturbations.make_a!(a, FD, GD, ncur, cur_index, nvar, nstate, nfwrd, fwrd_index, state_index)
-    ns = nvar + nshock
-    # TO BE FIXED !!!
-    hhh1 = Matrix(hh[1][:, 1:ns])
-    hhh2 = Matrix(hh[2][:, 1:ns*ns])
-    hhh = [hhh1, hhh2 ]
-    rhs = zeros(nvar, ns*ns)
-    KOrderPerturbations.partial_faa_di_bruno!(rhs, FD, hhh, order, faa_di_bruno_ws_2)
-    b .= view(FD[1], :, 2*nvar .+ (1:nvar))
-else
-    KOrderPerturbations.make_hh!(hh, GD, gg, order, ws)
-    KOrderPerturations.faa_di_bruno!(rhs, FD, hh, order, faa_di_bruno_ws_2)
-end
-lmul!(-1,rhs)
-# select only endogenous state variables on the RHS
-#pane_copy!(rhs1, rhs, 1:nvar, 1:nvar, 1:nstate, 1:nstate, nstate, nstate + 2*nshock + 1, order)
-rhs1 = rhs[:, [1, 2, 4, 5]]
-d = copy(rhs1)
-c = view(GD[1], state_index, 1:nstate)
-fill!(gs_ws.work1, 0.0)
-fill!(gs_ws.work2, 0.0)
-fill!(gs_ws.work3, 0.0)
-fill!(gs_ws.work4, 0.0)
-KOrderPerturbations.generalized_sylvester_solver!(a,b,c,d,order,gs_ws)
-
-KOrderPerturbations.k_order_solution!(GD, FD, moments[1:order], order, ws) 
 
 @testset verbose=true begin
-@testset "steady state" begin
-    @test ss[1] ≈ β*exp(θ*ss[2])*(1 + ss[1])
-    @test ss[2] ≈ (1 - ρ)*ss[2] + ρ*ss[2]
-    @test f(vcat(ss, ss, ss, 0), ϕ) ≈ zeros(2)
-end
-
-@testset "F derivatives" begin
-    FD = f_derivatives(ss, ϕ, 3)
-    s = vcat(ss,ss,ss,0)
-    ff(y) = f(y, ϕ)
-    J = ForwardDiff.jacobian(ff, s)
-    @test J ≈ FD[1]
-end
-
-
-@testset "g[1]" begin
-    ss = steady_state(ϕ)
-    g1 = g_derivatives(ss, ϕ, 1)[1][:, 1:2]
-    F1 = f_derivatives(ss, ϕ, 1)[1]
-    @test F1[:, 5:6]*g1*g1 + F1[:, 3:4]*g1 + F1[:, 1:2] ≈ zeros(2,2)
-end
-
-@testset "gg" begin
-    g1y = GD[1][:, 1:2]
-    g1u = GD[1][:, 3]
-    gg1_target = vcat(hcat(g1y, g1u, zeros(2, 2)),  
-                        hcat(zeros(1, 3), 1, 0),
-                        hcat(zeros(1, 4), 1))
-    @test gg[1] ≈  gg1_target
-end
-
-@testset "hh" begin
-    d1 = zeros(nvar)
-    d1[ws.state_index] .= 1
-    hh_1 = diagm(nvar, nvar +2*nshock +1, d1)
-    hh_target = vcat(hh_1,
-                     hcat(GD[1], zeros(nvar, nshock)),
-                     GD[1]*gg[1],
-                     hcat(zeros(nshock, nvar), I(nshock),
-                          zeros(nshock, nshock + 1)))
-    @show size(hh[1])
-    @show size(hh_target)                      
-    @test hh[1] ≈ hh_target
-end
+    @testset "steady state" begin
+        @test ss[1] ≈ β*exp(θ*ss[2])*(1 + ss[1])
+        @test ss[2] ≈ (1 - ρ)*ss[2] + ρ*ss[2]
+        @test f(vcat(ss, ss, ss, 0), ϕ) ≈ zeros(2)
+    end
     
-@testset "make_a" begin
-    @test a ≈ FD[1][:, 5:6]*GD[1][:,1:2] + FD[1][:,3:4]
+    FD = [Matrix(f) for f in f_derivatives(ss, ϕ, 2)]
+
+    @testset "F derivatives" begin
+        s = vcat(ss,ss,ss,0)
+        fff(y) = f(y, ϕ)
+        J = ForwardDiff.jacobian(fff, s)
+        @test J ≈ FD[1]
+    end
+    
+    GD = g_derivatives(ss, ϕ, 2)
+
+    @testset "g[1]" begin
+        ss = steady_state(ϕ)
+        g1 = GD[1][:, 1]
+        F1 = f_derivatives(ss, ϕ, 1)[1]
+        @test FD[1][:, 5:6]*g1*g1[2]+ FD[1][:, 3:4]*g1 ≈ -FD[1][:, 2]
+    end
+
+    nstate = ws.nstate
+    nshock = ws.nshock
+    nvar2 = ws.nvar*ws.nvar
+    gg = ws.gg
+    hh = ws.hh
+    rhs = reshape(view(ws.rhs,1:ws.nvar*(ws.nvar + 1)^order),
+    ws.nvar, (ws.nvar + 1)^order)
+    #rhs1 = reshape(view(ws.rhs1,1:ws.nvar*nstate^order),
+    #               ws.nvar, nstate^order)
+    faa_di_bruno_ws_1 = ws.faa_di_bruno_ws_1
+    faa_di_bruno_ws_2 = ws.faa_di_bruno_ws_2
+    nfwrd = ws.nfwrd
+    fwrd_index = ws.fwrd_index
+    state_index = ws.state_index
+    ncur = ws.ncur
+    cur_index = ws.cur_index
+    nvar = ws.nvar
+    a = ws.a
+    b = ws.b
+    luws = ws.luws
+    work1 = ws.work1
+    work2 = ws.work2
+    ws.gs_ws = KOrderPerturbations.GeneralizedSylvesterWs(nvar,nvar,nstate,order)
+
+    gs_ws = ws.gs_ws
+    gs_ws_result = gs_ws.result
+
+    # derivatives w.r. y
+    KOrderPerturbations.make_gg!(gg, GD, order-1, ws)
+    @testset "gg" begin
+        g1y = GD[1][2, 1]
+        g1u = GD[1][2, 2]
+        gg1_target = vcat(hcat(g1y, g1u, zeros(1, 2)),  
+                            hcat(zeros(1, 3), 1),
+                            hcat(zeros(1, 2), 1, 0))
+        @test gg[1] ≈  gg1_target[:, 1:4]
+    end
+    
+    if order == 2
+        KOrderPerturbations.make_hh!(hh, GD, gg, 1, ws)
+
+        @testset "hh" begin
+            hh_target = vcat(
+                hcat(I(nstate), zeros(nstate, 2*nshock + 1)),
+                hcat(GD[1], zeros(nvar, nshock)),
+                GD[1]*gg[1],
+                hcat(zeros(nshock, nstate), I(nshock),
+                     zeros(nshock, nshock + 1)))
+            @show size(hh[1])
+            @show size(hh_target)                      
+            @test hh[1] ≈ hh_target
+        end
+            
+        KOrderPerturbations.make_a!(a, FD, GD, ncur, cur_index, nvar, nstate, nfwrd, fwrd_index, state_index)
+
+        @testset "make_a" begin
+            a_target = copy(FD[1][:, 3:4])
+            a_target[:, 2] .+= FD[1][:, 5:6]*GD[1][:,1] 
+            @test a ≈  a_target
+        end 
+        
+        ns = nstate + nshock
+        # TO BE FIXED !!!
+        hhh1 = Matrix(hh[1][:, 1:ns])
+        hhh2 = Matrix(hh[2][:, 1:ns*ns])
+        hhh = [hhh1, hhh2 ]
+        rhs = zeros(nvar, ns*ns)
+        k2 = filter(! in(collect(8:7:49)), collect(8:49))
+        ff = [FD[1][:, 2:7], FD[2][:, k2]]
+        KOrderPerturbations.partial_faa_di_bruno!(rhs, ff, hhh, order, faa_di_bruno_ws_2)
+        
+        @testset "rhs" begin
+            @test rhs[:, 1] ≈ Byy(GD, FD)[:, 4]
+        end
+
+        b .= view(FD[1], :, 2*nvar .+ (1:nvar))
+
+        @testset "b" begin
+            @test b ≈ FD[1][:, 5:6]
+        end
+    
+    else
+        KOrderPerturbations.make_hh!(hh, GD, gg, order, ws)
+        KOrderPerturations.faa_di_bruno!(rhs, FD, hh, order, faa_di_bruno_ws_2)
+    end
+    lmul!(-1,rhs)
+    # select only endogenous state variables on the RHS
+    #pane_copy!(rhs1, rhs, 1:nvar, 1:nvar, 1:nstate, 1:nstate, nstatje, nstate + 2*nshock + 1, order)
+    rhs1 = rhs[:, 1:1]
+    d = copy(rhs1)
+    c = view(GD[1], state_index, 1:nstate)
+
+    @testset "c" begin
+        @test size(c) == (1,1)
+        @test c[1] ≈ GD[1][2, 1] 
+    end
+
+    fill!(gs_ws.work1, 0.0)
+    fill!(gs_ws.work2, 0.0)
+    fill!(gs_ws.work3, 0.0)
+    fill!(gs_ws.work4, 0.0)
+    KOrderPerturbations.generalized_sylvester_solver!(a,b,c,d,order,gs_ws)
+    @show d
+    @show gs_ws_result
+    @testset "generalized_sylvester" begin
+        @test a*d + b*d*kron(c, c) ≈ rhs1
+    end
+    
+    KOrderPerturbations.store_results_1!(GD[order], gs_ws_result, nstate, nshock, nvar, order)
+
+    @testset "results_1" begin
+        @test GD[order][:,1] ≈ gd_targets(ss, ϕ, 2)[2][:, 1]
+    end
+
+    fp = view(FD[1],:,ws.nstate + ws.ncur .+ (1:ws.nfwrd))
+    KOrderPerturbations.make_gs_su!(ws.gs_su, GD[1], ws.nstate, ws.nshock, ws.state_index)
+    gykf = reshape(view(ws.gykf,1:ws.nfwrd*ws.nstate^order),
+               ws.nfwrd,ws.nstate^order)
+    @show GD[order]               
+    KOrderPerturbations.make_gykf!(gykf, GD[order], ws.nstate, ws.nfwrd, ws.nshock, ws.fwrd_index, order)
+
+    gu = view(ws.gs_su,:,ws.nstate .+ (1:ws.nshock))
+    rhs2 = reshape(view(ws.rhs1,:1:ws.nvar*(ws.nshock*(ws.nstate+ws.nshock))^(order-1)),
+               ws.nvar,(ws.nshock*(ws.nstate+ws.nshock))^(order-1))
+
+    work1 = view(ws.work1,1:ws.nvar*(ws.nstate + ws.nshock + 1)^order)
+    work2 = view(ws.work1,1:ws.nvar*(ws.nstate + ws.nshock + 1)^order)
+    KOrderPerturbations.a_mul_b_kron_c_d!(rhs2,fp,gykf,gu,ws.gs_su,order,work1,work2)
+    @show fp
+    @show gykf
+    @show gu
+    @show ws.gs_su
+    @show fp*gykf*kron(gu, ws.gs_su)
+    @show rhs2
+
+    rhs = reshape(view(ws.rhs,1:ws.nvar*(ws.nstate+2*ws.nshock+1)^order),
+                  ws.nvar,(ws.nstate+2*ws.nshock+1)^order)
+    KOrderPerturbations.make_rhs_2!(rhs2, rhs, ws.nstate, ws.nshock, ws.nvar)
+    lua = LU(factorize!(ws.luws, copy(ws.a))...)
+    ldiv!(lua, rhs2)
+
+    k2 = filter(! in(collect(8:7:49)), collect(8:49))
+    ff = [FD[1][:, 2:7], FD[2][:, k2]]
+    @show ws.a
+    fill!(ws.a, 0.0)
+    KOrderPerturbations.k_order_solution!(GD, ff, moments[1:order], order, ws)
+    @show ws.a 
+    @show GD[2]
+
+
+@testset "gs_su" begin
+    @show ws.gs_su
+    @show  GD[1][2, 1:2]
+    @test vec(ws.gs_su) ≈ GD[1][2, 1:2]
 end 
 
-@testset "b" begin
-    @test b ≈ FD[1][:, 5:6]
+@testset "gykf" begin
+    @test gykf ≈ GD[2][:, 1] 
 end
 
-@testset "c" begin
-    @test c ≈ GD[1][:, 1:2] 
-end
-
-@testset "generalized_sylvester" begin
-    d = copy(rhs1)
-    KOrderPerturbations.generalized_sylvester_solver!(a,b,c,d,order,gs_ws)
-    @test a*d + b*d*kron(c, c) ≈ rhs1
-end
 
 @testset "second order" begin
     k = [1, 2, 5, 6]
+    display(GD[2])
+    display(gd_targets(ss,ϕ,2)[2])
     @test GD[2][:, k] ≈ gd_targets(ss, ϕ, 2)[2][:, k]
 end
 
 @testset "Byy check" begin
-    Byy_KOrder = rhs1 * -1 # undo that useless lmul
-    @test Byy_KOrder ≈ Byy(GD, FD)
+    Byy_KOrder = rhs[1] * -1 # undo that useless lmul
+    @show Byy_KOrder
+    @show Byy(GD, FD)
+    @test Byy_KOrder ≈ Byy(GD, FD)[1, 4]
 end
 
 return nothing
