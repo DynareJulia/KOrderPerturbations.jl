@@ -12,30 +12,30 @@ using SparseArrays
 export make_gg!, make_hh!, k_order_solution!, KOrderWs
 
 mutable struct KOrderWs
-    nvar::Integer
-    nfwrd::Integer
-    nstate::Integer
-    ncur::Integer
-    nshock::Integer
-    ngcol::Integer
-    nhcol::Integer
-    nhrow::Integer
-    nng::Array{Int64}
-    nnh::Array{Int64}
+    nvar::Int64
+    nfwrd::Int64
+    nstate::Int64
+    ncur::Int64
+    nshock::Int64
+    ngcol::Int64
+    nhcol::Int64
+    nhrow::Int64
+    nng::Array{Int64, 1}
+    nnh::Array{Int64, 1}
     gci
     hci
-    fwrd_index::Array{Int64}
-    state_index::Array{Int64}
-    cur_index::Array{Int64}
+    fwrd_index::Array{Int64, 1}
+    state_index::Array{Int64, 1}
+    cur_index::Array{Int64, 1}
     state_range::AbstractRange # IS IT USEFULL ?
     gfwrd::Vector{Matrix{Float64}}
-    gg::Vector{SparseMatrixCSC{Float64}}
-    hh::Vector{SparseMatrixCSC{Float64}}
+    gg::Vector{SparseMatrixCSC{Float64, Int64}}
+    hh::Vector{SparseMatrixCSC{Float64, Int64}}
     rhs::Vector{Float64}
     rhs1::Vector{Float64}
-    my::Vector{SparseMatrixCSC{Float64}}    
-    zy::Vector{SparseMatrixCSC{Float64}}    
-    dy::Vector{SparseMatrixCSC{Float64}}    
+    my::Vector{SparseMatrixCSC{Float64, Int64}}
+    zy::Vector{SparseMatrixCSC{Float64, Int64}}
+    dy::Vector{SparseMatrixCSC{Float64, Int64}}
     gykf::Vector{Float64}
     gs_su::Matrix{Float64}
     a::Matrix{Float64}
