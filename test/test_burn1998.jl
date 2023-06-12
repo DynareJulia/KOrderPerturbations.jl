@@ -113,7 +113,7 @@ function gd_targets(ss, ϕ, order)
     GD[1][1, 2] = M1 * (1/(1 - β*exp(θ*xbar)) - ρ/(1 - β*ρ*exp(θ*xbar)))
     GD[1][2, 2] = 1
     # w.r. x_{t-1}
-    GD[1][1, 1] = ρ * GD[1][1, 3]
+    GD[1][1, 1] = ρ * GD[1][1, 2]
     GD[1][2, 1] = ρ
     if order > 1
         # order 2
@@ -224,6 +224,33 @@ function Bσσ(GD, FD)
     fyp_yp = [ FD[2][:, 4n + 5 : 4n + 6] FD[2][:, 5n + 5 : 5n + 6] ]
     Bσσ = (fyp_yp * kron(gu, gu) + FD[1][:, 5:6]*gu_u) * ∑σσ
     return Bσσ
+end
+
+GDD = gd_targets(ss, ϕ, 2)
+@testset "Byy" begin
+    gy = [zeros(2) GDD[1][:, 1]]
+    gyy = [zeros(2,3) GDD[2][:, 1]]
+    @show gy
+    @show gyy
+    @test (FD[1][:, [5, 6]]*(gyy*kron(gy, gy) + gy*gyy) +FD[1][:, [3, 4]]*gyy) ≈ - Byy(GDD, FD)
+end
+
+@testset "Byu" begin
+    gy = [zeros(2) GDD[1][:, 1]]
+    gyy = [zeros(2,3) GDD[2][:, 1]]
+    gyu = [zeros(2) GDD[2][:, 2]]
+    @show gy
+    @show gyy
+    @test (FD[1][:, [5, 6]]*(gy*gyu) +FD[1][:, [3, 4]]*gyu) ≈ - Byu(GDD, FD)
+end
+
+@testset "Buu" begin
+    gy = [zeros(2) GDD[1][:, 1]]
+    gyy = [zeros(2,3) GDD[2][:, 1]]
+    guu = GDD[2][:, 5]
+    @show gy
+    @show gyy
+    @test (FD[1][:, [5, 6]]*(gy*guu) +FD[1][:, [3, 4]]*guu) ≈ - Buu(GDD, FD)
 end
 
 order = 2
@@ -396,7 +423,8 @@ ss = steady_state(ϕ)
 
     work1 = view(ws.work1,1:ws.nvar*(ws.nstate + ws.nshock + 1)^order)
     work2 = view(ws.work1,1:ws.nvar*(ws.nstate + ws.nshock + 1)^order)
-    KOrderPerturbations.a_mul_b_kron_c_d!(rhs2,fp,gykf,gu,ws.gs_su,order,work1,work2)
+    #KOrderPerturbations.a_mul_b_kron_c_d!(rhs2,fp,gykf,gu,ws.gs_su,order,work1,work2)
+    rhs2 = fp*gykf*kron(gu, ws.gs_su)
     @show fp
     @show gykf
     @show gu
@@ -409,6 +437,7 @@ ss = steady_state(ϕ)
     KOrderPerturbations.make_rhs_2!(rhs2, rhs, ws.nstate, ws.nshock, ws.nvar)
     lua = LU(factorize!(ws.luws, copy(ws.a))...)
     ldiv!(lua, rhs2)
+    @show rhs2
 
     k2 = filter(! in(collect(8:7:49)), collect(8:49))
     ff = [FD[1][:, 2:7], FD[2][:, k2]]
