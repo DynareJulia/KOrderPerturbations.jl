@@ -404,46 +404,6 @@ ss = steady_state(ϕ)
     @show fp*gykf*kron(gu, ws.gs_su)
     @show rhs2
 
-    rhs = reshape(view(ws.rhs,1:ws.nvar*(ws.nstate+2*ws.nshock+1)^order),
-                  ws.nvar,(ws.nstate+2*ws.nshock+1)^order)
-    KOrderPerturbations.make_rhs_2!(rhs2, rhs, ws.nstate, ws.nshock, ws.nvar)
-    lua = LU(factorize!(ws.luws, copy(ws.a))...)
-    ldiv!(lua, rhs2)
-
-    k2 = filter(! in(collect(8:7:49)), collect(8:49))
-    ff = [FD[1][:, 2:7], FD[2][:, k2]]
-    @show ws.a
-    fill!(ws.a, 0.0)
-    KOrderPerturbations.k_order_solution!(GD, ff, moments[1:order], order, ws)
-    @show ws.a 
-    @show GD[2]
-
-
-@testset "gs_su" begin
-    @show ws.gs_su
-    @show  GD[1][2, 1:2]
-    @test vec(ws.gs_su) ≈ GD[1][2, 1:2]
-end 
-
-@testset "gykf" begin
-    @test gykf ≈ GD[2][:, 1] 
-end
-
-
-@testset "second order" begin
-    k = [1, 2, 5, 6]
-    display(GD[2])
-    display(gd_targets(ss,ϕ,2)[2])
-    @test GD[2][:, k] ≈ gd_targets(ss, ϕ, 2)[2][:, k]
-end
-
-@testset "Byy check" begin
-    Byy_KOrder = rhs[1] * -1 # undo that useless lmul
-    @show Byy_KOrder
-    @show Byy(GD, FD)
-    @test Byy_KOrder ≈ Byy(GD, FD)[1, 4]
-end
-
 return nothing
 end
 
