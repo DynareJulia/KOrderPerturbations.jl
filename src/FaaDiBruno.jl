@@ -4,9 +4,9 @@ using KroneckerTools
 
 export FaaDiBrunoWs, faa_di_bruno!, partial_faa_di_bruno!
 
-ttuple = Tuple{Array{Int, 1}, Array{Array{Int, 1}, 1}}
-tatuple = Array{ttuple, 1}
-trecipes = Array{Array{tatuple, 1}, 1}
+const ttuple = Tuple{Array{Int, 1}, Array{Array{Int, 1}, 1}}
+const tatuple = Array{ttuple, 1}
+const trecipes = Array{Array{tatuple, 1}, 1}
 
 struct FaaDiBrunoWs
     recipes::Array{Array{tatuple, 1}, 1}
