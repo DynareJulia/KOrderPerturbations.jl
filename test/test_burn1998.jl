@@ -369,6 +369,7 @@ ss = steady_state(ϕ)
     fill!(gs_ws.work2, 0.0)
     fill!(gs_ws.work3, 0.0)
     fill!(gs_ws.work4, 0.0)
+
     KOrderPerturbations.generalized_sylvester_solver!(a,b,c,d,order,gs_ws)
     @show d
     @show gs_ws_result
@@ -382,7 +383,7 @@ ss = steady_state(ϕ)
         @test GD[order][:,1] ≈ gd_targets(ss, ϕ, 2)[2][:, 1]
     end
 
-    fp = view(FD[1],:,ws.nstate + ws.ncur .+ (1:ws.nfwrd))
+    fp = view(FD[1],:,ws.nvar + ws.ncur .+ (1:ws.nfwrd))
     KOrderPerturbations.make_gs_su!(ws.gs_su, GD[1], ws.nstate, ws.nshock, ws.state_index)
     gykf = reshape(view(ws.gykf,1:ws.nfwrd*ws.nstate^order),
                ws.nfwrd,ws.nstate^order)
