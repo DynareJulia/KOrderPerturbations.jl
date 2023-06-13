@@ -226,33 +226,6 @@ function Bσσ(GD, FD)
     return Bσσ
 end
 
-GDD = gd_targets(ss, ϕ, 2)
-@testset "Byy" begin
-    gy = [zeros(2) GDD[1][:, 1]]
-    gyy = [zeros(2,3) GDD[2][:, 1]]
-    @show gy
-    @show gyy
-    @test (FD[1][:, [5, 6]]*(gyy*kron(gy, gy) + gy*gyy) +FD[1][:, [3, 4]]*gyy) ≈ - Byy(GDD, FD)
-end
-
-@testset "Byu" begin
-    gy = [zeros(2) GDD[1][:, 1]]
-    gyy = [zeros(2,3) GDD[2][:, 1]]
-    gyu = [zeros(2) GDD[2][:, 2]]
-    @show gy
-    @show gyy
-    @test (FD[1][:, [5, 6]]*(gy*gyu) +FD[1][:, [3, 4]]*gyu) ≈ - Byu(GDD, FD)
-end
-
-@testset "Buu" begin
-    gy = [zeros(2) GDD[1][:, 1]]
-    gyy = [zeros(2,3) GDD[2][:, 1]]
-    guu = GDD[2][:, 5]
-    @show gy
-    @show gyy
-    @test (FD[1][:, [5, 6]]*(gy*guu) +FD[1][:, [3, 4]]*guu) ≈ - Buu(GDD, FD)
-end
-
 order = 2
 endo_nbr = 2
 n_fwrd = 2
@@ -287,7 +260,28 @@ ss = steady_state(ϕ)
     end
     
     GD = g_derivatives(ss, ϕ, 2)
+    GDD = gd_targets(ss, ϕ, 2)
 
+    @testset "Byy" begin
+        gy = [zeros(2) GDD[1][:, 1]]
+        gyy = [zeros(2,3) GDD[2][:, 1]]
+        @test (FD[1][:, [5, 6]]*(gyy*kron(gy, gy) + gy*gyy) +FD[1][:, [3, 4]]*gyy) ≈ - Byy(GDD, FD)
+    end
+    
+    @testset "Byu" begin
+        gy = [zeros(2) GDD[1][:, 1]]
+        gyy = [zeros(2,3) GDD[2][:, 1]]
+        gyu = [zeros(2) GDD[2][:, 2]]
+        @test (FD[1][:, [5, 6]]*(gy*gyu) +FD[1][:, [3, 4]]*gyu) ≈ - Byu(GDD, FD)
+    end
+    
+    @testset "Buu" begin
+        gy = [zeros(2) GDD[1][:, 1]]
+        gyy = [zeros(2,3) GDD[2][:, 1]]
+        guu = GDD[2][:, 5]
+        @test (FD[1][:, [5, 6]]*(gy*guu) +FD[1][:, [3, 4]]*guu) ≈ - Buu(GDD, FD)
+    end
+    
     @testset "g[1]" begin
         ss = steady_state(ϕ)
         g1 = GD[1][:, 1]
@@ -347,9 +341,11 @@ ss = steady_state(ϕ)
             @show size(hh_target)                      
             @test hh[1] ≈ hh_target
         end
-            
+        
+        @show FD[1]
+        @show GD[1]
         KOrderPerturbations.make_a!(a, FD, GD, ncur, cur_index, nvar, nstate, nfwrd, fwrd_index, state_index)
-
+        @show a
         @testset "make_a" begin
             a_target = copy(FD[1][:, 3:4])
             a_target[:, 2] .+= FD[1][:, 5:6]*GD[1][:,1] 
@@ -361,15 +357,15 @@ ss = steady_state(ϕ)
         hhh1 = Matrix(hh[1][:, 1:ns])
         hhh2 = Matrix(hh[2][:, 1:ns*ns])
         hhh = [hhh1, hhh2 ]
-        rhs = zeros(nvar, ns*ns)
+        rhs = zeros(2, ns*ns)
         k2 = filter(! in(collect(8:7:49)), collect(8:49))
         ff = [FD[1][:, 2:7], FD[2][:, k2]]
         KOrderPerturbations.partial_faa_di_bruno!(rhs, ff, hhh, order, faa_di_bruno_ws_2)
-        
         @testset "rhs" begin
             @test rhs[:, 1] ≈ Byy(GD, FD)[:, 4]
         end
-
+        @views ws.rhs[1:2*ns*ns] .= vec(rhs)
+        
         b .= view(FD[1], :, 2*nvar .+ (1:nvar))
 
         @testset "b" begin
@@ -391,15 +387,13 @@ ss = steady_state(ϕ)
         @test size(c) == (1,1)
         @test c[1] ≈ GD[1][2, 1] 
     end
-
-    fill!(gs_ws.work1, 0.0)
-    fill!(gs_ws.work2, 0.0)
-    fill!(gs_ws.work3, 0.0)
-    fill!(gs_ws.work4, 0.0)
-
-    KOrderPerturbations.generalized_sylvester_solver!(a,b,c,d,order,gs_ws)
+    @show ws.a
+    @show a
+    @show b
+    @show c
     @show d
-    @show gs_ws_result
+    KOrderPerturbations.generalized_sylvester_solver!(a,b,c,d,order,gs_ws)
+    @show ws.a
     @testset "generalized_sylvester" begin
         @test a*d + b*d*kron(c, c) ≈ rhs1
     end
@@ -412,12 +406,24 @@ ss = steady_state(ϕ)
 
     fp = view(FD[1],:,ws.nvar + ws.ncur .+ (1:ws.nfwrd))
     KOrderPerturbations.make_gs_su!(ws.gs_su, GD[1], ws.nstate, ws.nshock, ws.state_index)
+
+    @testset "gs_su" begin
+        @show ws.gs_su
+        @show  GD[1][2, 1:2]
+        @test vec(ws.gs_su) ≈ GDD[1][2, 1:2]
+    end 
+    
     gykf = reshape(view(ws.gykf,1:ws.nfwrd*ws.nstate^order),
                ws.nfwrd,ws.nstate^order)
     @show GD[order]               
     KOrderPerturbations.make_gykf!(gykf, GD[order], ws.nstate, ws.nfwrd, ws.nshock, ws.fwrd_index, order)
 
+    @testset "gykf" begin
+        @test gykf ≈ GDD[2][:, 1] 
+    end
+    
     gu = view(ws.gs_su,:,ws.nstate .+ (1:ws.nshock))
+
     rhs2 = reshape(view(ws.rhs1,:1:ws.nvar*(ws.nshock*(ws.nstate+ws.nshock))^(order-1)),
                ws.nvar,(ws.nshock*(ws.nstate+ws.nshock))^(order-1))
 
@@ -432,31 +438,38 @@ ss = steady_state(ϕ)
     @show fp*gykf*kron(gu, ws.gs_su)
     @show rhs2
 
-    rhs = reshape(view(ws.rhs,1:ws.nvar*(ws.nstate+2*ws.nshock+1)^order),
-                  ws.nvar,(ws.nstate+2*ws.nshock+1)^order)
-    KOrderPerturbations.make_rhs_2!(rhs2, rhs, ws.nstate, ws.nshock, ws.nvar)
+    @show ws.rhs
+    @show rhs
+    rhs = reshape(view(ws.rhs,1:ws.nvar*(ws.nstate + ws.nshock)^order),
+                  ws.nvar,(ws.nstate + ws.nshock)^order)
+    #KOrderPerturbations.make_rhs_2!(rhs2, rhs, ws.nstate, ws.nshock, ws.nvar)
+    rhs2 += rhs[:, 3:4]
+    
+    @testset  "Byu Buu check" begin
+        @test [Byu(GDD, FD)[:, 2] Buu(GDD, FD)] ≈ rhs2
+    end 
+
+    lmul!(-1.0, rhs2)
     lua = LU(factorize!(ws.luws, copy(ws.a))...)
     ldiv!(lua, rhs2)
     @show rhs2
+    GD[2][:, 4:5] .= rhs2
+    GD[2][:, 2] .= GD[2][:, 4]
 
+    @testset "gyu guu" begin
+        @test GD[2][:, [2, 4, 5]] ≈ GDD[2][:, [2, 4, 5]]
+    end  
+    
     k2 = filter(! in(collect(8:7:49)), collect(8:49))
     ff = [FD[1][:, 2:7], FD[2][:, k2]]
     @show ws.a
     fill!(ws.a, 0.0)
-    KOrderPerturbations.k_order_solution!(GD, ff, moments[1:order], order, ws)
+    ws1 = KOrderPerturbations.KOrderWs(endo_nbr, n_fwrd, n_states, n_current, n_shocks, i_fwrd, i_bkwrd,
+    i_current , state_range, order)
+
+    KOrderPerturbations.k_order_solution!(GD, FD, moments[1:order], order, ws1)
     @show ws.a 
     @show GD[2]
-
-
-@testset "gs_su" begin
-    @show ws.gs_su
-    @show  GD[1][2, 1:2]
-    @test vec(ws.gs_su) ≈ GD[1][2, 1:2]
-end 
-
-@testset "gykf" begin
-    @test gykf ≈ GD[2][:, 1] 
-end
 
 
 @testset "second order" begin

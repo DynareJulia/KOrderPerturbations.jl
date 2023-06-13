@@ -26,6 +26,7 @@ mutable struct KOrderWs
     cur_index::Array{Int64}
     state_range::AbstractRange
     gfwrd::Vector{Matrix{Float64}}
+    compact_f::Vector{Matrix{Float64}}
     gg::Vector{Matrix{Float64}}
     hh::Vector{Matrix{Float64}}
     rhs::Vector{Float64}
@@ -53,6 +54,7 @@ mutable struct KOrderWs
         nng = [ngcol^i for i = 1:(order-1)]
         nnh = [ngcol^i for i = 1:(order-1)]
         gfwrd = [zeros(nfwrd,nstate^i) for i = 1:order]
+        compact_f = [zeros(nvar, (nstate + ncur + nfwrd + nshock)^i) for i = 1:order]
         gg = [zeros(nstate + nshock + 1,ngcol^i) for i = 1:order]
         hh = [zeros(nhrow, ngcol^i) for i = 1:order]
         gci = [CartesianIndices(gg[i]) for i = 1:order]
@@ -76,7 +78,7 @@ mutable struct KOrderWs
         gs_ws = GeneralizedSylvesterWs(nvar,nvar,nstate,order)
         new(nvar, nfwrd, nstate, ncur, nshock, ngcol, nhcol, nhrow,
             nng, nnh, gci, hci, fwrd_index, state_index, cur_index,
-            state_range, gfwrd, gg, hh, rhs, rhs1, my, zy, dy, gykf,
+            state_range, gfwrd, compact_f, gg, hh, rhs, rhs1, my, zy, dy, gykf,
             gs_su, a, a1, b, c, work1, work2, faa_di_bruno_ws_1,
             faa_di_bruno_ws_2, luws, gs_ws)
     end
@@ -90,7 +92,17 @@ end
 #              m.i_current, state_range, order)
 # end
 
-    
+"""
+    make_compact_f!(compact_f, f, order, ws)
+
+set nonzeros column of derivative matrices    
+"""
+function make_compact_f!(compact_f. f, order, ws)
+    if order > 1
+    else        
+        for j in enumerate(state_index)
+            for k in 1:ws.nvar
+                compact_f[1][k, j] = 
 """
     function make_gg!(gg,g,order,ws)
 
@@ -625,6 +637,7 @@ solves (f^1_0 + f^1_+ gx)X + f^1_+ X (gx ⊗ ... ⊗ gx) = D
 
 """
 function k_order_solution!(g,f,moments,order,ws)
+    @show "k_order_solutions"
     nstate = ws.nstate
     nshock = ws.nshock
     gg = ws.gg
@@ -653,7 +666,10 @@ function k_order_solution!(g,f,moments,order,ws)
     make_gg!(gg, g, order-1, ws)
     if order == 2
         make_hh!(hh, g, gg, 1, ws)
+        @show f[1]
+        @show g[1]
         make_a!(a, f, g, ncur, cur_index, nvar, nstate, nfwrd, fwrd_index, state_index)
+        @show a
         nns1 = nstate + 2*nshock + 1
         k = reshape(1:nns1^2, nns1, nns1)
         ns = nstate + nshock
@@ -671,6 +687,10 @@ function k_order_solution!(g,f,moments,order,ws)
     pane_copy!(rhs1, rhs, 1:nvar, 1:nvar, 1:nstate, 1:nstate, nstate, nstate + 2*nshock + 1, order)
     d = rhs1
     c = view(g[1],state_index,1:nstate)
+    @show a
+    @show b
+    @show c
+    @show d
     generalized_sylvester_solver!(a,b,c,d,order,gs_ws)
     store_results_1!(g[order], gs_ws_result, nstate, nshock, nvar, order)
     compute_derivatives_wr_shocks!(ws,f,g,order)
