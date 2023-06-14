@@ -24,6 +24,7 @@ mutable struct KOrderWs
     fwrd_index::Array{Int64}
     state_index::Array{Int64}
     cur_index::Array{Int64}
+    f_index::Vector{Int64}
     state_range::AbstractRange
     gfwrd::Vector{Matrix{Float64}}
     compact_f::Vector{Matrix{Float64}}
@@ -54,6 +55,7 @@ mutable struct KOrderWs
         nng = [ngcol^i for i = 1:(order-1)]
         nnh = [ngcol^i for i = 1:(order-1)]
         gfwrd = [zeros(nfwrd,nstate^i) for i = 1:order]
+        f_index = make_f_index(state_index, cur_index, fwrd_index, nvar, nshock)
         compact_f = [zeros(nvar, (nstate + ncur + nfwrd + nshock)^i) for i = 1:order]
         gg = [zeros(nstate + nshock + 1,ngcol^i) for i = 1:order]
         hh = [zeros(nhrow, ngcol^i) for i = 1:order]
@@ -77,7 +79,7 @@ mutable struct KOrderWs
         work2 = similar(work1)
         gs_ws = GeneralizedSylvesterWs(nvar,nvar,nstate,order)
         new(nvar, nfwrd, nstate, ncur, nshock, ngcol, nhcol, nhrow,
-            nng, nnh, gci, hci, fwrd_index, state_index, cur_index,
+            nng, nnh, gci, hci, fwrd_index, state_index, cur_index,f_index,
             state_range, gfwrd, compact_f, gg, hh, rhs, rhs1, my, zy, dy, gykf,
             gs_su, a, a1, b, c, work1, work2, faa_di_bruno_ws_1,
             faa_di_bruno_ws_2, luws, gs_ws)
@@ -92,17 +94,68 @@ end
 #              m.i_current, state_range, order)
 # end
 
+function make_f_index(state_index, cur_index, fwrd_index, nvar, nshock)
+    return vcat(state_index,
+                nvar .+ cur_index,
+                2*nvar .+ fwrd_index,
+                3*nvar .+ (1:nshock))
+end 
+
 """
     make_compact_f!(compact_f, f, order, ws)
 
 set nonzeros column of derivative matrices    
 """
-function make_compact_f!(compact_f. f, order, ws)
+function make_compact_f!(compact_f, f, order, ws)
+    nvar = ws.nvar
+    f_index = ws.f_index
+    n = 3*nvar + ws.nshock
+    for i = 1:order
+        mindex = vcat([collect(1:nvar)], repeat([ws.f_index], i))
+        @show mindex
+        ff = reshape(f[i], nvar, repeat([n],i)...)
+        @show size(ff)
+        @show size(getindex(ff, mindex...))
+        compact_f[i] = reshape(getindex(ff, mindex...), nvar, length(f_index)^i)
+    end
+    return compact_f
+end  
+
+#=
+    nvar = ws.nvar
+    state_index = ws.state_index
+    cur_index = nvar .+ ws.cur_index
+    fwrd_index = 2*nvar .+ ws.fwrd_index
+    shock_index = 3*nvar .+ (1:ws.nshock)
     if order > 1
     else        
-        for j in enumerate(state_index)
+        for (i, j) in enumerate(state_index)
             for k in 1:ws.nvar
-                compact_f[1][k, j] = 
+                compact_f[1][k, i] = f[1][k, j]
+            end
+        end
+        offset = length(state_index)
+        for (i, j) in enumerate(cur_index)
+            for k in 1:ws.nvar
+                compact_f[1][k, i + offset] = f[1][k, j]
+            end
+        end
+        offset += length(cur_index)
+        for (i, j) in enumerate(fwrd_index)
+            for k in 1:ws.nvar
+                compact_f[1][k, i + offset] = f[1][k, j]
+            end
+        end
+        offset += length(fwrd_index)
+        for (i, j) in enumerate(shock_index)
+            for k in 1:ws.nvar
+                compact_f[1][k, i + offset] = f[1][k, j]
+            end
+        end
+    end
+end 
+=#
+
 """
     function make_gg!(gg,g,order,ws)
 
@@ -264,7 +317,7 @@ function make_a!(a::Matrix{Float64}, f::Vector{Matrix{Float64}},
                  fwrd_index::Vector{Int64},
                  state_index::Vector{Int64})
     
-    so = nvar*nvar + 1
+    so = nstate*nvar + 1
     @inbounds for i=1:ncur
         copyto!(a,(cur_index[i]-1)*nvar+1,f[1],so,nvar)
         so += nvar
@@ -273,7 +326,7 @@ function make_a!(a::Matrix{Float64}, f::Vector{Matrix{Float64}},
         for j=1:nvar
             x = 0.0
             @simd for k=1:nfwrd
-                x += f[1][j, nvar + ncur + k]*g[1][fwrd_index[k], i]
+                x += f[1][j, nstate + ncur + k]*g[1][fwrd_index[k], i]
             end
             a[j,state_index[i]] += x
         end
@@ -440,18 +493,28 @@ function compute_derivatives_wr_shocks!(ws::KOrderWs, f, g, order::Int64)
                    ws.nvar,(ws.nshock*(ws.nstate+ws.nshock))^(order-1))
     work1 = view(ws.work1,1:ws.nvar*(ws.nstate + ws.nshock + 1)^order)
     work2 = view(ws.work1,1:ws.nvar*(ws.nstate + ws.nshock + 1)^order)
-    a_mul_b_kron_c_d!(rhs1,fp,gykf,gu,ws.gs_su,order,work1,work2)
+    #a_mul_b_kron_c_d!(rhs1,fp,gykf,gu,ws.gs_su,order,work1,work2)
+    rhs1 .= fp*gykf*kron(gu, ws.gs_su)
     @show (rhs1 - fp*gykf*kron(gu, ws.gs_su))
         
     rhs = reshape(view(ws.rhs,1:ws.nvar*(ws.nstate+2*ws.nshock+1)^order),
                   ws.nvar,(ws.nstate+2*ws.nshock+1)^order)
     @show rhs
     rhs1_old = copy(rhs1)
-    make_rhs_2!(rhs1, rhs, ws.nstate, ws.nshock, ws.nvar)
-    @show (rhs1 + rhs1_old - rhs[:, 2:3])
+    #make_rhs_2!(rhs1, rhs, ws.nstate, ws.nshock, ws.nvar)
+    n = ws.nstate + ws.nshock
+    @show rhs1
+    @show ws.rhs1
+    @show rhs
+    rhs1 .-= rhs[:, n .+ (1:n)]
+    @show (rhs1 + rhs1_old + rhs[:, 3:4])
+    @show ws.a
     lua = LU(factorize!(ws.luws, copy(ws.a))...)
+    lmul!(-1.0, rhs1)
     ldiv!(lua, rhs1)
     @show rhs1
+    @show ws.rhs1
+    @show "end compute_derivatives_wr_shocks"
 end
 
 function store_results_2_1(results::AbstractArray, r::AbstractArray, index::Vector{Int64},
@@ -694,6 +757,7 @@ function k_order_solution!(g,f,moments,order,ws)
     generalized_sylvester_solver!(a,b,c,d,order,gs_ws)
     store_results_1!(g[order], gs_ws_result, nstate, nshock, nvar, order)
     compute_derivatives_wr_shocks!(ws,f,g,order)
+    @show rhs1
     store_results_2!(g[order], rhs1, nstate, nshock, order)
 #    make_gsk!(g, f, moments[2], a, rhs, rhs1,
 #              nfwrd, nstate, nvar, ncur, nshock,

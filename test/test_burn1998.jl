@@ -251,6 +251,10 @@ ss = steady_state(ϕ)
     end
     
     FD = [Matrix(f) for f in f_derivatives(ss, ϕ, 2)]
+    n = n_states + n_current + n_fwrd + n_shocks
+    F = [zeros(endo_nbr, n^i) for i = 1:order]
+
+    KOrderPerturbations.make_compact_f!(F, FD, 2, ws)
 
     @testset "F derivatives" begin
         s = vcat(ss,ss,ss,0)
@@ -344,11 +348,11 @@ ss = steady_state(ϕ)
         
         @show FD[1]
         @show GD[1]
-        KOrderPerturbations.make_a!(a, FD, GD, ncur, cur_index, nvar, nstate, nfwrd, fwrd_index, state_index)
+        KOrderPerturbations.make_a!(a, F, GD, ncur, cur_index, nvar, nstate, nfwrd, fwrd_index, state_index)
         @show a
         @testset "make_a" begin
-            a_target = copy(FD[1][:, 3:4])
-            a_target[:, 2] .+= FD[1][:, 5:6]*GD[1][:,1] 
+            a_target = copy(F[1][:, 2:3])
+            a_target[:, 2] .+= F[1][:, 4:5]*GD[1][:,1] 
             @test a ≈  a_target
         end 
         
@@ -467,7 +471,7 @@ ss = steady_state(ϕ)
     ws1 = KOrderPerturbations.KOrderWs(endo_nbr, n_fwrd, n_states, n_current, n_shocks, i_fwrd, i_bkwrd,
     i_current , state_range, order)
 
-    KOrderPerturbations.k_order_solution!(GD, FD, moments[1:order], order, ws1)
+    KOrderPerturbations.k_order_solution!(GD, F, moments[1:order], order, ws1)
     @show ws.a 
     @show GD[2]
 
@@ -480,7 +484,7 @@ ss = steady_state(ϕ)
 end
 
 @testset "Byy check" begin
-    Byy_KOrder = rhs[1] * -1 # undo that useless lmul
+    Byy_KOrder = rhs[1] 
     @show Byy_KOrder
     @show Byy(GD, FD)
     @test Byy_KOrder ≈ Byy(GD, FD)[1, 4]
