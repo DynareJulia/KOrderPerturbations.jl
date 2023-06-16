@@ -112,10 +112,7 @@ function make_compact_f!(compact_f, f, order, ws)
     n = 3*nvar + ws.nshock
     for i = 1:order
         mindex = vcat([collect(1:nvar)], repeat([ws.f_index], i))
-        @show mindex
         ff = reshape(f[i], nvar, repeat([n],i)...)
-        @show size(ff)
-        @show size(getindex(ff, mindex...))
         compact_f[i] = reshape(getindex(ff, mindex...), nvar, length(f_index)^i)
     end
     return compact_f
@@ -414,11 +411,7 @@ function make_gykf_1!(gykf::AbstractArray, g::AbstractArray, rs::AbstractRange{I
             rd_ = rd_ .+ n1
         end
     else
-        @show g
-        @show fwrd_index
-        @show rs
         v1 = view(g,fwrd_index, rs)
-        @show v1
         v2 = view(gykf,:, rd)
         v2 .= v1
     end
@@ -495,26 +488,16 @@ function compute_derivatives_wr_shocks!(ws::KOrderWs, f, g, order::Int64)
     work2 = view(ws.work1,1:ws.nvar*(ws.nstate + ws.nshock + 1)^order)
     #a_mul_b_kron_c_d!(rhs1,fp,gykf,gu,ws.gs_su,order,work1,work2)
     rhs1 .= fp*gykf*kron(gu, ws.gs_su)
-    @show (rhs1 - fp*gykf*kron(gu, ws.gs_su))
         
     rhs = reshape(view(ws.rhs,1:ws.nvar*(ws.nstate+2*ws.nshock+1)^order),
                   ws.nvar,(ws.nstate+2*ws.nshock+1)^order)
-    @show rhs
     rhs1_old = copy(rhs1)
     #make_rhs_2!(rhs1, rhs, ws.nstate, ws.nshock, ws.nvar)
     n = ws.nstate + ws.nshock
-    @show rhs1
-    @show ws.rhs1
-    @show rhs
     rhs1 .-= rhs[:, n .+ (1:n)]
-    @show (rhs1 + rhs1_old + rhs[:, 3:4])
-    @show ws.a
     lua = LU(factorize!(ws.luws, copy(ws.a))...)
     lmul!(-1.0, rhs1)
     ldiv!(lua, rhs1)
-    @show rhs1
-    @show ws.rhs1
-    @show "end compute_derivatives_wr_shocks"
 end
 
 function store_results_2_1(results::AbstractArray, r::AbstractArray, index::Vector{Int64},
@@ -639,7 +622,7 @@ function make_gsk!(g::Vector{<:AbstractArray},
                    nfwrd::Int64, nstate::Int64, nvar::Int64,
                    ncur::Int64, nshock::Int64,
                    fwrd_index::Vector{Int64},
-                   linsolve_ws_1::LUWs, work1::Vector{Float64},
+                   luws::LUWs, work1::Vector{Float64},
                    work2::Vector{Float64}, a1)
 
     # solves a*g_σ^2 = (-B_uu - f1*g_uu )Σ
@@ -650,6 +633,7 @@ function make_gsk!(g::Vector{<:AbstractArray},
         end
     end
 
+    # g_uu for forward-looking variables
     nshock2 = nshock*nshock
     vg = view(work2,1:(nfwrd*nshock2))
     offset = nstate*(nstate+nshock+1) + nstate + 1
@@ -658,36 +642,35 @@ function make_gsk!(g::Vector{<:AbstractArray},
         scol = offset
         for j=1:nshock
             @simd for k = 1:nfwrd
-                work2[drow] = g[2][fwrd_index[k],scol]
+                work2[drow] = g[2][fwrd_index[k], scol]
                 drow += 1
             end
             scol += 1
         end
         offset += nstate + nshock + 1
     end
-    vfplus = view(f[1],:,nstate + ncur .+ (1:nfwrd))
     vg1 = reshape(vg,nfwrd,nshock2)
+    # f_yp
+    vfplus = view(f[1],:,nstate + ncur .+ (1:nfwrd))
+    # f_yp*g_uu
     vwork1 = reshape(view(work1,1:(nvar*nshock2)),nvar,nshock2)
     mul!(vwork1,vfplus,vg1)
-    
+
+    # f_ypyp
+    nf = nstate + ncur + nfwrd + nshock
+    ifwrd = nstate + ncur .+ (1:nfwrd)
+    f_ypyp = reshape(getindex(reshape(f[2], nvar, nf, nf), :, ifwrd, ifwrd), nvar, nfwrd*nfwrd)
+    # f_ypyp*kron(gu, gu)
+    vrhs = view(rhs1,:,1:nshock2)
+    gu = view(g[1], :, nstate .+ (1:nshock))
+    vrhs .= f_ypyp*kron(gu, gu)
     vrhs1 = view(rhs1,:,1:nshock2)
-    offset = (nstate + nshock + 1)*(nstate + 2*nshock + 1) + nstate + nshock + 2
-    dcol = 1
-    @inbounds for i=1:nshock
-        scol = offset
-        for j=1:nshock
-            @simd for k=1:nvar
-                vrhs1[k,dcol] = -rhs[k,scol] - vwork1[k,dcol]
-            end
-            dcol += 1
-            scol += 1
-        end
-        offset += nstate + 2*nshock + 1
-    end
-    
+    vrhs1 .= .-vrhs .- vwork1
+   
     vwork2 = view(work2,1:nvar)
     mul!(vwork2,vrhs1,moments)
-    linsolve_core!(linsolve_ws_1,Ref{UInt8}('N'),a1,vwork2)
+    lua1 = LU(factorize!(luws, copy(a1))...)
+    ldiv!(lua1, vwork2)
     dcol = (nstate + nshock + 1)
     dcol2 = ((dcol - 1)*dcol + nstate + nshock)*nvar + 1
     copyto!(g[2],dcol2,vwork2,1,nvar)
@@ -700,7 +683,6 @@ solves (f^1_0 + f^1_+ gx)X + f^1_+ X (gx ⊗ ... ⊗ gx) = D
 
 """
 function k_order_solution!(g,f,moments,order,ws)
-    @show "k_order_solutions"
     nstate = ws.nstate
     nshock = ws.nshock
     gg = ws.gg
@@ -729,10 +711,7 @@ function k_order_solution!(g,f,moments,order,ws)
     make_gg!(gg, g, order-1, ws)
     if order == 2
         make_hh!(hh, g, gg, 1, ws)
-        @show f[1]
-        @show g[1]
         make_a!(a, f, g, ncur, cur_index, nvar, nstate, nfwrd, fwrd_index, state_index)
-        @show a
         nns1 = nstate + 2*nshock + 1
         k = reshape(1:nns1^2, nns1, nns1)
         ns = nstate + nshock
@@ -750,17 +729,12 @@ function k_order_solution!(g,f,moments,order,ws)
     pane_copy!(rhs1, rhs, 1:nvar, 1:nvar, 1:nstate, 1:nstate, nstate, nstate + 2*nshock + 1, order)
     d = rhs1
     c = view(g[1],state_index,1:nstate)
-    @show a
-    @show b
-    @show c
-    @show d
     generalized_sylvester_solver!(a,b,c,d,order,gs_ws)
     store_results_1!(g[order], gs_ws_result, nstate, nshock, nvar, order)
     compute_derivatives_wr_shocks!(ws,f,g,order)
-    @show rhs1
     store_results_2!(g[order], rhs1, nstate, nshock, order)
-#    make_gsk!(g, f, moments[2], a, rhs, rhs1,
-#              nfwrd, nstate, nvar, ncur, nshock,
-#              fwrd_index, linsolve_ws, work1, work2)
+    make_gsk!(g, f, moments[2], a, rhs, rhs1,
+              nfwrd, nstate, nvar, ncur, nshock,
+              fwrd_index, ws.luws, work1, work2, ws.a1)
 end
 

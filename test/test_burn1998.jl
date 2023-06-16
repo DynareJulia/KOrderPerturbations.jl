@@ -125,6 +125,10 @@ function gd_targets(ss, ϕ, order)
         # w.r. x_{t-1}*u_{t-1}
         GD[2][1, 2] = ρ * GD[2][1, 3 + 2]
         GD[2][1, 3 + 1] = GD[2][1, 2]
+        # w.r. σ*σ
+        N2 = θ^2*β*exp(θ*xbar)/(1 - ρ)^2
+        GD[2][1, 9] = N2*(1/(1 - β*exp(θ*xbar))^2 - 2*ρ/((1 - ρ)*(1-β*exp(θ*xbar))) + 2*ρ^2/((1 - ρ)*(1 - β*ρ*exp(θ*xbar))) + ρ^2/((1 - ρ^2)*(1 - β*exp(θ*xbar))) -
+        ρ^4/((1 - ρ^2)*(1 - β*ρ^2*exp(θ*xbar))))*SDu^2
     end
     return GD
 end
@@ -239,7 +243,7 @@ i_state = [2]
 state_range = 1:1
 ws = KOrderPerturbations.KOrderWs(endo_nbr, n_fwrd, n_states, n_current, n_shocks, i_fwrd, i_bkwrd,
                                   i_current , state_range, order)
-moments = [0, SDu^2, 0, 3*SDu^4]
+moments = [[0], [SDu^2], [0], [3*SDu^4]]
 
 ss = steady_state(ϕ)
 
@@ -285,6 +289,12 @@ ss = steady_state(ϕ)
         guu = GDD[2][:, 5]
         @test (FD[1][:, [5, 6]]*(gy*guu) +FD[1][:, [3, 4]]*guu) ≈ - Buu(GDD, FD)
     end
+
+    @testset "Bσσ" begin
+        gy = [zeros(2) GDD[1][:, 1]]
+        gσσ = GDD[2][:,9]
+        @test ((FD[1][:, [5, 6]]*(I + gy) + FD[1][:, [3, 4]])*gσσ) ≈ - Bσσ(GDD,FD)
+    end 
     
     @testset "g[1]" begin
         ss = steady_state(ϕ)
@@ -341,15 +351,10 @@ ss = steady_state(ϕ)
                 GD[1]*gg[1],
                 hcat(zeros(nshock, nstate), I(nshock),
                      zeros(nshock, nshock + 1)))
-            @show size(hh[1])
-            @show size(hh_target)                      
             @test hh[1] ≈ hh_target
         end
         
-        @show FD[1]
-        @show GD[1]
         KOrderPerturbations.make_a!(a, F, GD, ncur, cur_index, nvar, nstate, nfwrd, fwrd_index, state_index)
-        @show a
         @testset "make_a" begin
             a_target = copy(F[1][:, 2:3])
             a_target[:, 2] .+= F[1][:, 4:5]*GD[1][:,1] 
@@ -391,13 +396,8 @@ ss = steady_state(ϕ)
         @test size(c) == (1,1)
         @test c[1] ≈ GD[1][2, 1] 
     end
-    @show ws.a
-    @show a
-    @show b
-    @show c
-    @show d
     KOrderPerturbations.generalized_sylvester_solver!(a,b,c,d,order,gs_ws)
-    @show ws.a
+
     @testset "generalized_sylvester" begin
         @test a*d + b*d*kron(c, c) ≈ rhs1
     end
@@ -412,14 +412,11 @@ ss = steady_state(ϕ)
     KOrderPerturbations.make_gs_su!(ws.gs_su, GD[1], ws.nstate, ws.nshock, ws.state_index)
 
     @testset "gs_su" begin
-        @show ws.gs_su
-        @show  GD[1][2, 1:2]
         @test vec(ws.gs_su) ≈ GDD[1][2, 1:2]
     end 
     
     gykf = reshape(view(ws.gykf,1:ws.nfwrd*ws.nstate^order),
                ws.nfwrd,ws.nstate^order)
-    @show GD[order]               
     KOrderPerturbations.make_gykf!(gykf, GD[order], ws.nstate, ws.nfwrd, ws.nshock, ws.fwrd_index, order)
 
     @testset "gykf" begin
@@ -433,17 +430,8 @@ ss = steady_state(ϕ)
 
     work1 = view(ws.work1,1:ws.nvar*(ws.nstate + ws.nshock + 1)^order)
     work2 = view(ws.work1,1:ws.nvar*(ws.nstate + ws.nshock + 1)^order)
-    #KOrderPerturbations.a_mul_b_kron_c_d!(rhs2,fp,gykf,gu,ws.gs_su,order,work1,work2)
     rhs2 = fp*gykf*kron(gu, ws.gs_su)
-    @show fp
-    @show gykf
-    @show gu
-    @show ws.gs_su
-    @show fp*gykf*kron(gu, ws.gs_su)
-    @show rhs2
 
-    @show ws.rhs
-    @show rhs
     rhs = reshape(view(ws.rhs,1:ws.nvar*(ws.nstate + ws.nshock)^order),
                   ws.nvar,(ws.nstate + ws.nshock)^order)
     #KOrderPerturbations.make_rhs_2!(rhs2, rhs, ws.nstate, ws.nshock, ws.nvar)
@@ -456,7 +444,6 @@ ss = steady_state(ϕ)
     lmul!(-1.0, rhs2)
     lua = LU(factorize!(ws.luws, copy(ws.a))...)
     ldiv!(lua, rhs2)
-    @show rhs2
     GD[2][:, 4:5] .= rhs2
     GD[2][:, 2] .= GD[2][:, 4]
 
@@ -466,29 +453,27 @@ ss = steady_state(ϕ)
     
     k2 = filter(! in(collect(8:7:49)), collect(8:49))
     ff = [FD[1][:, 2:7], FD[2][:, k2]]
-    @show ws.a
     fill!(ws.a, 0.0)
     ws1 = KOrderPerturbations.KOrderWs(endo_nbr, n_fwrd, n_states, n_current, n_shocks, i_fwrd, i_bkwrd,
     i_current , state_range, order)
 
     KOrderPerturbations.k_order_solution!(GD, F, moments[1:order], order, ws1)
-    @show ws.a 
-    @show GD[2]
 
+    n = size(FD[1], 2)
+    ∑σσ = SDu^2
+    gu = GD[1][:, 2]
+    gu_u = GD[2][:, 5]
+    fyp_yp = [ FD[2][:, 4n + 5 : 4n + 6] FD[2][:, 5n + 5 : 5n + 6] ]
 
-@testset "second order" begin
-    k = [1, 2, 5, 6]
-    display(GD[2])
-    display(gd_targets(ss,ϕ,2)[2])
-    @test GD[2][:, k] ≈ gd_targets(ss, ϕ, 2)[2][:, k]
-end
+    @testset "second order" begin
+        k = [1, 2, 5, 6]
+        @test GD[2][:, k] ≈ gd_targets(ss, ϕ, 2)[2][:, k]
+    end
 
-@testset "Byy check" begin
-    Byy_KOrder = rhs[1] 
-    @show Byy_KOrder
-    @show Byy(GD, FD)
-    @test Byy_KOrder ≈ Byy(GD, FD)[1, 4]
-end
+    @testset "Byy check" begin
+        Byy_KOrder = rhs[1] 
+        @test Byy_KOrder ≈ Byy(GD, FD)[1, 4]
+    end 
 
 return nothing
 end
