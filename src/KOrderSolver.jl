@@ -671,6 +671,7 @@ function k_order_solution!(g,f,moments,order,ws)
         partial_faa_di_bruno!(rhs, ff, hhh, order, faa_di_bruno_ws_2)
         b .= view(f[1], :, 2*nvar .+ (1:nvar))
     else
+        throw(ErrorException("Branch not implemented yet"))
         make_hh!(hh, g, gg, order, ws)
         faa_di_bruno!(rhs,f,hh,order,faa_di_bruno_ws_2)
     end

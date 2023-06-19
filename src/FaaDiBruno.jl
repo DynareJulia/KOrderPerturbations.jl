@@ -47,7 +47,7 @@ function setup_recipes!(recipes::trecipes, order::Int)
             c = tatuple(undef, 0)
             p2 = collect(partitions(collect(1:i), j))
             map!(x -> sort(x, by = length), p2, p2)
-            patterns = map(x -> map(y -> length(y), x), p2)
+            patterns = map(x -> length.(x), p2)
             p1j = filter(x -> length(x) == j, p1)
             for k in 1:length(p1j)
                 p1jk = p1j[k]
@@ -127,8 +127,9 @@ function apply_recipes!(dfg::AbstractArray{Float64}, recipes::tatuple, f::Abstra
         fill!(work1, 0.0)
         fill!(ws.work2, 0.0)
         if n < mg
-            # TODO: TEST CASE
-            # This function does not exist. Conditional for correctness or optimization?
+            throw(ErrorException("Branch not implemented yet"))
+            # this method call doesn't exist, and I think the other a_mul_kron_b! call failed 
+            ## when Icontrived a tests with mg > n (not sure if is realistic) 
             a_mul_kron_b!(work1, f, g[recipes1], ws.work2, ws.work3)
         else
             a_mul_kron_b!(work1, f, g[recipes1], ws.work2)
