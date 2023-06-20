@@ -485,9 +485,8 @@ function compute_derivatives_wr_shocks!(ws::KOrderWs, f, g, order::Int64)
     rhs1 = reshape(view(ws.rhs1,:1:ws.nvar*(ws.nshock*(ws.nstate+ws.nshock))^(order-1)),
                    ws.nvar,(ws.nshock*(ws.nstate+ws.nshock))^(order-1))
     work1 = view(ws.work1,1:ws.nvar*(ws.nstate + ws.nshock + 1)^order)
-    work2 = view(ws.work1,1:ws.nvar*(ws.nstate + ws.nshock + 1)^order)
-    #a_mul_b_kron_c_d!(rhs1,fp,gykf,gu,ws.gs_su,order,work1,work2)
-    rhs1 .= fp*gykf*kron(gu, ws.gs_su)
+    work2 = view(ws.work2,1:ws.nvar*(ws.nstate + ws.nshock + 1)^order)
+    a_mul_b_kron_c_d!(rhs1,fp,gykf,gu,ws.gs_su,order,work1,work2)
         
     rhs = reshape(view(ws.rhs,1:ws.nvar*(ws.nstate+2*ws.nshock+1)^order),
                   ws.nvar,(ws.nstate+2*ws.nshock+1)^order)
