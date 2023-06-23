@@ -662,10 +662,11 @@ function make_gsk!(g::Vector{<:AbstractArray},
     # f_ypyp*kron(gu, gu)
     vrhs = view(rhs1,:,1:nshock2)
     gu = view(g[1], :, nstate .+ (1:nshock))
-    vrhs .= f_ypyp*kron(gu, gu)
+    a_mul_kron_b!(vrhs, f_ypyp, gu, 2, work1, work2)
     vrhs1 = view(rhs1,:,1:nshock2)
-    vrhs1 .= .-vrhs .- vwork1
-   
+    vrhs .= .-vrhs .- vwork1
+
+    
     vwork2 = view(work2,1:nvar)
     mul!(vwork2,vrhs1,moments)
     lua1 = LU(factorize!(luws, copy(a1))...)
