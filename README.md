@@ -6,3 +6,4 @@ WORK IN PROGRESS
 Stochastic General Equilibrium model using a perturbation approach at
 order `k`
 
+Currently works only for order = 2
