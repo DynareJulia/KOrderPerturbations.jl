@@ -1,7 +1,7 @@
 name = "KOrderPerturbations"
 uuid = "469b1a10-d817-41b3-9228-c19fbf63afb5"
 authors = ["MichelJuillard <michel.juillard@mjui.fr>"]
-version = "0.1.0"
+version = "0.1.1"
 
 [deps]
 Combinatorics = "861a8166-3701-5b0c-9a16-15d98fcdc6aa"
