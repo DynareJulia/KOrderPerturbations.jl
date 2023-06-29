@@ -13,6 +13,6 @@ LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
 [compat]
 julia = "1.6.3"
 Combinatorics = "1.0.2"
-FastLapackInterface = "^1"
-GeneralizedSylvesterSolver = "0.2.0"
+FastLapackInterface = "2.0.0"
+GeneralizedSylvesterSolver = "0.2.1"
 KroneckerTools = "0.2.0"
