@@ -129,4 +129,18 @@ only solving the linear system
 ```math
    (f_{y^+}g_y + f_0)g_{y^iu^k} = K_2
 ```
+### Splitting results
+``g`` is the first argument of ``k_order_solution!()``
+```
+gy = g[1][:, 1:ws.nstate]
+gu = g[1][:, ws.nstate .+ (1:ws.nshock)]
+n = ws.nstate + ws.nshock + 1
+K = reshape(1:n*n, n, n)
+gyy = g[2][:, vec(K[1:ws.nstate, 1:ws.nstate])]
+gyu = g[2][:, vec(K[1:ws.nstate, ws.nstate .+ (1:ws.nchock)])]
+guu = g[2][:, vec( K[ws.nstate .+ (1:ws.nshock), ws.nstate .+ (1:ws.nchock)])]
+g\sigma\sigma = g[2][:,end]
+y0 = y[ws.i_state]
+```
+
 
