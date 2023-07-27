@@ -723,6 +723,51 @@ function k_order_solution!(g,f,moments,order,ws)
     make_gsk!(g, f, moments[2], a, rhs, rhs1,
               nfwrd, nstate, nvar, ncur, nshock,
               fwrd_index, ws.luws, work1, work2, ws.a1)
+
+
+end
+
+⊗(a,b) = kron(a,b)
+
+function simulate_run(GD, t_final, ws)
+    # y0 and ut should be provided by user, but this is some demo inputs
+    gy = GD[1][:, :]
+    y0 = ones(size(gy, 2))
+    ut = eachcol( randn(ws.nshock, t_final).*0.01 )
+    
+    simulate(GD, y0, ut, t_final, ws)
+end
+
+function simulate(GD, y0, ut, t_final, ws)
+    # output matrix to hold a simulated time-step per column
+    simulations = ones(length(y0), t_final)
+
+    gy = GD[1][:, 1:ws.nstate]
+    gu = GD[1][:, ws.nstate .+ (1:ws.nshock)]
+    
+    n = ws.nstate + ws.nshock + 1
+    K = reshape(1:n*n, n, n)
+    gσσ = GD[2][:,end]
+    gyy = GD[2][:, vec(K[1:ws.nstate, 1:ws.nstate])]
+    gyu = GD[2][:, vec(K[1:ws.nstate, ws.nstate .+ (1:ws.nshock)])]
+    guu = GD[2][:, vec(K[ws.nstate .+ (1:ws.nshock), ws.nstate .+ (1:ws.nshock)])]
+    
+    simulations[:, 1] = y0
+
+    for i in 2:t_final
+        y_prev = simulations[:, i-1]
+
+        y1 = gy * y_prev[ws.state_index] + gu * ut[i] 
+
+        y2 = gσσ +
+             gyy * (y_prev[ws.state_index] ⊗ y_prev[ws.state_index]) +
+             guu * (ut[i] ⊗ ut[i]) +  
+             2gyu * (y_prev[ws.state_index] ⊗ ut[i])
+
+        simulations[:, i] = y1 + 0.5y2
+    end
+
+    return simulations
 end
 
 function F_matrices(f, ws)
