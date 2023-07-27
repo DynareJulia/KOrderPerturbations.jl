@@ -731,8 +731,8 @@ end
 
 function simulate_run(GD, t_final, ws)
     # y0 and ut should be provided by user, but this is some demo inputs
-    gy = GD[1][:, :]
-    y0 = ones(size(gy, 2))
+    gy1 = GD[1][:, 1]
+    y0 = ones(size(gy1)[1])
     ut = eachcol( randn(ws.nshock, t_final).*0.01 )
     
     simulate(GD, y0, ut, t_final, ws)
