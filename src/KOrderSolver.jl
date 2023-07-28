@@ -54,7 +54,7 @@ mutable struct KOrderWs
         nhrow = nfwrd+nvar+nstate+nshock
         nng = [ngcol^i for i = 1:(order-1)]
         nnh = [ngcol^i for i = 1:(order-1)]
-        gfwrd = [zeros(nfwrd,nstate^i) for i = 1:order]
+        gfwrd = [zeros(nfwrd,(nstate + nshock + 1)^i) for i = 1:order]
         f_index = make_f_index(state_index, cur_index, fwrd_index, nvar, nshock)
         compact_f = [zeros(nvar, (nstate + ncur + nfwrd + nshock)^i) for i = 1:order]
         gg = [zeros(nstate + nshock + 1,ngcol^i) for i = 1:order]
@@ -179,7 +179,7 @@ function make_gg!(gg,g,order,ws)
         gg[1][end, ws.nstate + ws.nshock + 1] = 1.0 
     else
         pane_copy!(gg[order], g[order], 1:ws.nstate, ws.state_index, 1:mgg1, 1:mgg1,
-                    ngg1, mgg1, order)
+                   ngg1, mgg1, order)
     end
 end
 
@@ -204,6 +204,11 @@ computes and assembles derivatives of function
 with respect to [y_s, u, σ, ϵ]
 """  
 function  make_hh!(hh, g, gg, order, ws)
+    # derivatives of g() for forward looking variables
+    @show g[order]
+    @show ws.fwrd_index
+    copyto!(ws.gfwrd[order], view(g[order], ws.fwrd_index, :))
+    @show ws.gfwrd[order]
     if order == 1
         for i = 1:ws.nstate
             hh[1][i,i] = 1.0
@@ -212,20 +217,17 @@ function  make_hh!(hh, g, gg, order, ws)
         copyto!(vh1,g[1])
         n = ws.nstate + 2*ws.nshock + 1
         vh2 = view(hh[1],ws.nstate + ws.nvar .+ (1:ws.nfwrd),1:n)
-        vg2 = view(g[1],ws.fwrd_index,:)
-        mul!(vh2, vg2, gg[1])
+        mul!(vh2, ws.gfwrd[order], gg[1])
         row = ws.nstate + ws.nvar + ws.nfwrd 
         col = ws.nstate
         for i = 1:ws.nshock
             hh[1][row + i, col + i] = 1.0
         end
     else
-        # derivatives of g() for forward looking variables
-        copyto!(ws.gfwrd[order-1],view(g[order-1],ws.fwrd_index,:))
         # derivatives for g(g(y,u,σ),ϵ,σ)
-        vh1 = view(hh[order],ws.nstate + ws.ncur .+ (1:ws.nfwrd),:)
+        vh1 = view(hh[order], ws.nstate + ws.ncur .+ (1:ws.nfwrd), :)
         partial_faa_di_bruno!(vh1, ws.gfwrd, gg, order, ws.faa_di_bruno_ws_1)
-        pane_copy!(hh[order-1], g[order-1], ws.nstate .+ ws.cur_index, ws.cur_index, 1:ws.nstate, 1:ws.nstate, ws.nstate, ws.nstate + 2*ws.nshock + 1, order-1)
+        pane_copy!(hh[order], g[order], ws.nstate .+ ws.cur_index, ws.cur_index, 1:ws.nstate, 1:ws.nstate, ws.nstate, ws.nstate + 2*ws.nshock + 1, order)
     end        
 end
     
@@ -248,6 +250,7 @@ end
 function pane_copy!(dest, src, i_row_d, i_row_s, i_col_d, i_col_s,
                       d_dim, s_dim, offset_d, offset_s, order)
     nc = length(i_col_s)
+    @show nc
     if order > 1
         os = offset_s
         od = offset_d
@@ -260,11 +263,17 @@ function pane_copy!(dest, src, i_row_d, i_row_s, i_col_d, i_col_s,
             os += inc_s
         end
     else
+        @show i_row_d
+        @show i_row_s
+        @show i_col_d
+        @show i_col_s
         nr = length(i_row_d)
         @inbounds for i = 1:nc
             kd = i_col_d[i] + offset_d
             ks = i_col_s[i] + offset_s
+            @show kd, ks
             @simd for j = 1:nr
+                @show i_row_d[j], i_row_s[j], src[i_row_s[j], ks]
                 dest[i_row_d[j], kd] = src[i_row_s[j], ks]
             end
         end
