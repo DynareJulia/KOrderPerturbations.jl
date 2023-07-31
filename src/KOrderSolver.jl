@@ -752,19 +752,56 @@ function simulate(GD, y0, ut, t_final, ws)
     gyu = GD[2][:, vec(K[1:ws.nstate, ws.nstate .+ (1:ws.nshock)])]
     guu = GD[2][:, vec(K[ws.nstate .+ (1:ws.nshock), ws.nstate .+ (1:ws.nshock)])]
     
-    simulations[:, 1] = y0
+    y_prev = y0
 
-    for i in 2:t_final
-        y_prev = simulations[:, i-1]
-
-        y1 = gy * y_prev[ws.state_index] + gu * ut[i] 
+    for i in 1:t_final
+        y1 = gy * y_prev[ws.state_index] + gu * ut[:, i] 
 
         y2 = gσσ +
              gyy * (y_prev[ws.state_index] ⊗ y_prev[ws.state_index]) +
-             guu * (ut[i] ⊗ ut[i]) +  
-             2gyu * (y_prev[ws.state_index] ⊗ ut[i])
+             guu * (ut[:, i] ⊗ ut[:, i]) +  
+             2gyu * (y_prev[ws.state_index] ⊗ ut[:, i])
 
         simulations[:, i] = y1 + 0.5y2
+        y_prev = simulations[:, i]
+ end
+
+    return simulations
+end
+
+function simulate1(GD, y0, ut, t_final, ws)
+    n = length(y0)
+    # output matrix to hold a simulated time-step per column
+    simulations = Matrix{Float64}(undef, n, t_final)
+    y1 = Vector{Float64}(undef, n)
+    y2 = Vector{Float64}(undef, n*n)
+
+    gy = GD[1][ :, 1:ws.nstate]
+    gu = GD[1][ :, ws.nstate .+ (1:ws.nshock)]
+    
+    n = ws.nstate + ws.nshock + 1
+    K = reshape(1:n*n, n, n)
+    gσσ = GD[2][ :, n*n]
+    gyy = GD[2][ :, vec(K[1:ws.nstate, 1:ws.nstate])]
+    gyu = GD[2][ :, vec(K[1:ws.nstate, ws.nstate .+ (1:ws.nshock)])]
+    guu = GD[2][ :, vec(K[ws.nstate .+ (1:ws.nshock), ws.nstate .+ (1:ws.nshock)])]
+    
+    simulations[:, 1] = y0
+    
+    @views for i in 2:t_final
+        y_state = simulations[ws.state_index, i-1]
+        uti = ut[:, i]
+        
+        # y1 = gy*y_state + gu*ut[:, i]
+        mul!(y1, gy, y_state)
+        mul!(y1, gu, uti, 1, 1) 
+        
+        copy!(y2, gσσ)
+        mul!(y2, gyy, y_state ⊗ y_state, 1, 1) 
+        mul!(y2, guu, uti ⊗ uti, 1, 1)
+        mul!(y2, gyu, y_state ⊗ uti, 2, 1)
+        
+        simulations[:, i] .= y1 .+ 0.5 .* y2
     end
 
     return simulations
