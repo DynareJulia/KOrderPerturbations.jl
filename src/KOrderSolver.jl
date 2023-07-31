@@ -205,10 +205,7 @@ with respect to [y_s, u, σ, ϵ]
 """  
 function  make_hh!(hh, g, gg, order, ws)
     # derivatives of g() for forward looking variables
-    @show g[order]
-    @show ws.fwrd_index
     copyto!(ws.gfwrd[order], view(g[order], ws.fwrd_index, :))
-    @show ws.gfwrd[order]
     if order == 1
         for i = 1:ws.nstate
             hh[1][i,i] = 1.0
@@ -250,7 +247,6 @@ end
 function pane_copy!(dest, src, i_row_d, i_row_s, i_col_d, i_col_s,
                       d_dim, s_dim, offset_d, offset_s, order)
     nc = length(i_col_s)
-    @show nc
     if order > 1
         os = offset_s
         od = offset_d
@@ -263,17 +259,11 @@ function pane_copy!(dest, src, i_row_d, i_row_s, i_col_d, i_col_s,
             os += inc_s
         end
     else
-        @show i_row_d
-        @show i_row_s
-        @show i_col_d
-        @show i_col_s
         nr = length(i_row_d)
         @inbounds for i = 1:nc
             kd = i_col_d[i] + offset_d
             ks = i_col_s[i] + offset_s
-            @show kd, ks
             @simd for j = 1:nr
-                @show i_row_d[j], i_row_s[j], src[i_row_s[j], ks]
                 dest[i_row_d[j], kd] = src[i_row_s[j], ks]
             end
         end
