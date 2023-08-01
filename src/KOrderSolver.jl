@@ -774,7 +774,7 @@ function simulate1(GD, y0, ut, t_final, ws)
     # output matrix to hold a simulated time-step per column
     simulations = Matrix{Float64}(undef, n, t_final)
     y1 = Vector{Float64}(undef, n)
-    y2 = Vector{Float64}(undef, n*n)
+    y2 = Vector{Float64}(undef, n)
 
     gy = GD[1][ :, 1:ws.nstate]
     gu = GD[1][ :, ws.nstate .+ (1:ws.nshock)]
