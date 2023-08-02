@@ -104,6 +104,7 @@ function partial_faa_di_bruno!(dfg::AbstractArray{Float64}, f::Array{Matrix{Floa
     elseif order == 2
         a_mul_kron_b!(dfg, f[2], g[1], 2, ws.work1, ws.work2)
     else
+        @show ws.recipes[order]
         for i in 1:order
             apply_recipes!(dfg, ws.recipes[order][i], f[i], g, order, ws)
         end
@@ -115,7 +116,6 @@ function apply_recipes!(dfg::AbstractArray{Float64}, recipes::tatuple, f::Abstra
                         g::Array{Array{Float64, 2}, 1}, order::Int64, ws::FaaDiBrunoWs)
     m = size(f, 1)
     mg, n = size(g[1])
-    dims = (m, repeat([n], order)...)
     work1 = reshape(view(ws.work1, 1:(m * n^order)), m, n^order)
     for i in 1:length(recipes)
         recipes1 = recipes[i][1]
@@ -123,17 +123,18 @@ function apply_recipes!(dfg::AbstractArray{Float64}, recipes::tatuple, f::Abstra
         fill!(work1, 0.0)
         fill!(ws.work2, 0.0)
         if n < mg
-            # TODO: TEST CASE
-            # This function does not exist. Conditional for correctness or optimization?
             a_mul_kron_b!(work1, f, g[recipes1], ws.work2, ws.work3)
         else
             a_mul_kron_b!(work1, f, g[recipes1], ws.work2)
         end
-        work1_tensor = reshape(work1, dims)
-        dfg_tensor = reshape(dfg, dims)
-        for r in recipes2
-            dims1 = (1, r .+ 1...)
-            dfg_tensor .+= PermutedDimsArray(work1_tensor, dims1)
+        if n > 1
+            dims = (m, repeat([n], order)...)
+            work1_tensor = reshape(work1, dims)
+            dfg_tensor = reshape(dfg, dims)
+            for r in recipes2
+                dims1 = (1, r .+ 1...)
+                dfg_tensor .+= PermutedDimsArray(work1_tensor, dims1)
+            end
         end
     end
     return dfg

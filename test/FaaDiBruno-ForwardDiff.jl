@@ -40,3 +40,12 @@ x = [2, 3, 7]
 @test nOrder_FaaDiBruno(f, g, x, 2) ≈ nOrder_ForwardDiff(f ∘ g, x, 2)[end]
 @test nOrder_FaaDiBruno(f, g, x, 3) ≈ nOrder_ForwardDiff(f ∘ g, x, 3)[end]
 @test nOrder_FaaDiBruno(f, g, x, 4) ≈ nOrder_ForwardDiff(f ∘ g, x, 4)[end]
+
+# y is 2x1 < x that is 3x1
+f(x) = [x[1]^3 + 3x[2]; -x[2]^3 + 2 * x[3]^2; x[3]^3]
+g(y) = [y[1]^3 + y[2]; y[2]^3 + 2y[2]^2 ; y[2]^3 + 3y[2]]
+x = [2, 3, 7]
+@test nOrder_FaaDiBruno(f, g, x, 1) ≈ nOrder_ForwardDiff(f ∘ g, x, 1)[end]
+@test nOrder_FaaDiBruno(f, g, x, 2) ≈ nOrder_ForwardDiff(f ∘ g, x, 2)[end]
+@test nOrder_FaaDiBruno(f, g, x, 3) ≈ nOrder_ForwardDiff(f ∘ g, x, 3)[end]
+

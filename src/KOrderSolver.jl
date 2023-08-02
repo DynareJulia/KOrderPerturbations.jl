@@ -160,13 +160,13 @@ assembles the derivatives of function
 gg(y,u,ϵ,σ) = [g_state(y,u,σ); ϵ; σ] at  order 'order' 
 with respect to [y, u, σ, ϵ]
 """  
-function make_gg!(gg,g,order,ws)
+function make_gg!(gg, g, order, ws)
     ngg1 = ws.nstate + 2*ws.nshock + 1
     mgg1 = ws.nstate + ws.nshock + 1
     @assert size(gg[order]) == (mgg1, ngg1^order)
     @assert size(g[order],2) == (ws.nstate + ws.nshock + 1)^order
     @assert ws.state_range.stop <= size(g[order],1)
-    if order == 1
+    if order == 2
         for i = 1:ws.nstate + ws.nshock
             for j = 1:ws.nstate
                 j1 = ws.state_index[j]
@@ -178,8 +178,10 @@ function make_gg!(gg,g,order,ws)
         end
         gg[1][end, ws.nstate + ws.nshock + 1] = 1.0 
     else
-        pane_copy!(gg[order], g[order], 1:ws.nstate, ws.state_index, 1:mgg1, 1:mgg1,
-                   ngg1, mgg1, order)
+        pane_copy!(gg[order - 1], g[order - 1], 1:ws.nstate, ws.state_index, 1:mgg1, 1:mgg1,
+                   ngg1, mgg1, order - 1)
+        @show g[order - 1]
+        @show gg[order - 1]
     end
 end
 
@@ -206,25 +208,40 @@ with respect to [y_s, u, σ, ϵ]
 function  make_hh!(hh, g, gg, order, ws)
     # derivatives of g() for forward looking variables
     copyto!(ws.gfwrd[order], view(g[order], ws.fwrd_index, :))
-    if order == 1
+    ns1 = ws.nstate + ws.nshock + 1
+    ns2 = ns1 + ws.nshock
+    if order == 2
         for i = 1:ws.nstate
             hh[1][i,i] = 1.0
         end
         vh1 = view(hh[1],ws.nstate .+ (1:ws.nvar),1:(ws.nstate+ws.nshock+1))
         copyto!(vh1,g[1])
-        n = ws.nstate + 2*ws.nshock + 1
-        vh2 = view(hh[1],ws.nstate + ws.nvar .+ (1:ws.nfwrd),1:n)
-        mul!(vh2, ws.gfwrd[order], gg[1])
+        pane_copy!(ws.gfwrd[1], g[1], 1:ws.nfwrd, ws.fwrd_index, 1:ns1, 1:ns1, ns1, ns1, 0, 0, 1)
+        vh2 = view(hh[1],ws.nstate + ws.nvar .+ (1:ws.nfwrd), 1:ns2)
+        mul!(vh2, ws.gfwrd[order - 1], gg[1])
         row = ws.nstate + ws.nvar + ws.nfwrd 
         col = ws.nstate
         for i = 1:ws.nshock
             hh[1][row + i, col + i] = 1.0
         end
-    else
+    elseif order == 3
+        # 2nd order
+        # g derivative
+        pane_copy!(hh[2], g[2], ws.nstate .+ (1:ws.nvar), 1:ws.nvar, 1:(ws.nstate + ws.nshock),
+                   1:(ws.nstate + ws.nshock), ws.nstate + 2*ws.nshock + 1, ws.nstate + ws.nshock + 1, order)
+        # update ws.gfwrd
+        pane_copy!(ws.gfwrd[2], g[2], 1:ws.nfwrd, ws.fwrd_index, 1:ns1, 1:ns1, ns1, ns1, 0, 0, 2)
         # derivatives for g(g(y,u,σ),ϵ,σ)
-        vh1 = view(hh[order], ws.nstate + ws.ncur .+ (1:ws.nfwrd), :)
-        partial_faa_di_bruno!(vh1, ws.gfwrd, gg, order, ws.faa_di_bruno_ws_1)
-        pane_copy!(hh[order], g[order], ws.nstate .+ ws.cur_index, ws.cur_index, 1:ws.nstate, 1:ws.nstate, ws.nstate, ws.nstate + 2*ws.nshock + 1, order)
+        vh2 = view(hh[2], ws.nstate + ws.ncur .+ (1:ws.nfwrd), :)
+        partial_faa_di_bruno!(vh2, ws.gfwrd, gg, 2, ws.faa_di_bruno_ws_1)
+        #3rd order
+        # derivatives for g(g(y,u,σ),ϵ,σ)
+        vh3 = view(hh[3], ws.nstate + ws.ncur .+ (1:ws.nfwrd), :)
+        faa_di_bruno!(vh3, ws.gfwrd, gg, order, ws.faa_di_bruno_ws_1)
+        @show ws.gfwrd
+        @show gg
+        @show vh3
+    else
     end        
 end
     
@@ -691,9 +708,9 @@ function k_order_solution!(g,f,moments,order,ws)
     gs_ws = ws.gs_ws
     gs_ws_result = gs_ws.result
     
-    make_gg!(gg, g, order-1, ws)
+    make_gg!(gg, g, order, ws)
     if order == 2
-        make_hh!(hh, g, gg, 1, ws)
+        make_hh!(hh, g, gg, 2, ws)
         make_a!(a, f, g, ncur, cur_index, nvar, nstate, nfwrd, fwrd_index, state_index)
         ns = nstate + nshock
         nns1 = nstate + 2*nshock + 1
@@ -701,13 +718,20 @@ function k_order_solution!(g,f,moments,order,ws)
         kk = vec(k[1:ns, 1:ns])
         hhh = [hh[1][:, 1:ns],
                hh[2][:, kk]]
-                
         fill!(rhs, 0.0)
-        partial_faa_di_bruno!(rhs,f,hhh,order,faa_di_bruno_ws_2)
+        partial_faa_di_bruno!(rhs, f, hhh, order, faa_di_bruno_ws_2)
         make_b!(b, f, ws)
     else
         make_hh!(hh, g, gg, order, ws)
-        faa_di_bruno!(rhs,f,hh,order,faa_di_bruno_ws_2)
+        ns = nstate + nshock
+        nns1 = nstate + 2*nshock + 1
+        k = reshape(1:nns1^3, nns1, nns1, nns1)
+        kk = vec(k[1:ns, 1:ns])
+        hhh = [hh[1][:, 1:ns],
+               hh[2][:, kk]]
+        hhh[3] = hh[3][:, kk]
+        fill!(rhs, 0.0)
+        partial_faa_di_bruno!(rhs, f, hh, order, faa_di_bruno_ws_2)
     end
     lmul!(-1,rhs)
     # select only endogenous state variables on the RHS
@@ -715,7 +739,9 @@ function k_order_solution!(g,f,moments,order,ws)
     d = rhs1
     c = view(g[1],state_index,1:nstate)
     generalized_sylvester_solver!(a,b,c,d,order,gs_ws)
+    @show d
     store_results_1!(g[order], gs_ws_result, nstate, nshock, nvar, order)
+    @show g[order]
     rhs1 = compute_derivatives_wr_shocks!(ws,f,g,order)
     ns1 = nstate + nshock + 1
     store_results_2!(g[order], rhs1, nstate, nshock, order)

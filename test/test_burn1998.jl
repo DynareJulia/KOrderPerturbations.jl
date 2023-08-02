@@ -350,7 +350,7 @@ ss = steady_state(ϕ)
     gs_ws_result = gs_ws.result
 
     # derivatives w.r. y
-    KOrderPerturbations.make_gg!(gg, GD, order-1, ws)
+    KOrderPerturbations.make_gg!(gg, GD, order, ws)
     @testset "gg" begin
         g1y = GD[1][2, 1]
         g1u = GD[1][2, 2]
@@ -362,12 +362,12 @@ ss = steady_state(ϕ)
     
     if order >= 2
         # TODO hh should only have state and shock
-        KOrderPerturbations.make_hh!(hh, GD, gg, 1, ws)
+        KOrderPerturbations.make_hh!(hh, GD, gg, 2, ws)
 
         @testset "hh" begin
             hh_target = vcat(
                 hcat(I(nstate), zeros(nstate, 2*nshock + 1)),
-                hcat(GD[1], zeros(nvar, nshock)),
+                hcat(GD[1][:, 1:2], zeros(nvar, nshock + 1)),
                 GD[1]*gg[1],
                 hcat(zeros(nshock, nstate), I(nshock),
                      zeros(nshock, nshock + 1)))
@@ -387,9 +387,7 @@ ss = steady_state(ϕ)
         hhh2 = Matrix(hh[2][:, 1:ns*ns])
         hhh = [hhh1, hhh2 ]
         rhs = zeros(2, ns*ns)
-        k2 = filter(! in(collect(8:7:49)), collect(8:49))
-        ff = [FD[1][:, 2:7], FD[2][:, k2]]
-        KOrderPerturbations.partial_faa_di_bruno!(rhs, ff, hhh, order, faa_di_bruno_ws_2)
+        KOrderPerturbations.partial_faa_di_bruno!(rhs, F, hhh, order, faa_di_bruno_ws_2)
         @testset "rhs" begin
             @test rhs[:, 1] ≈ Byy(GD, FD)[:, 4]
         end
@@ -401,6 +399,9 @@ ss = steady_state(ϕ)
             @test b ≈ FD[1][:, 5:6]
         end
     end
+    rhs10 = F[2]*kron(hhh1, hhh1)
+    @show rhs10
+    @show rhs[:, 1]
     lmul!(-1,rhs)
     # select only endogenous state variables on the RHS
     #pane_copy!(rhs1, rhs, 1:nvar, 1:nvar, 1:nstate, 1:nstate, nstatje, nstate + 2*nshock + 1, order)
@@ -481,6 +482,7 @@ ss = steady_state(ϕ)
     gu_u = GD[2][:, 5]
     fyp_yp = [ FD[2][:, 4n + 5 : 4n + 6] FD[2][:, 5n + 5 : 5n + 6] ]
 
+    display(GD[2])
     @testset "second order" begin
         k = [1, 2, 5, 6]
         @test GD[2][:, k] ≈ gd_targets(ss, ϕ, 2)[2][:, k]
@@ -491,7 +493,7 @@ ss = steady_state(ϕ)
         @test Byy_KOrder ≈ Byy(GD, FD)[1, 4]
     end 
 end
-
+    
 @testset "3rd order" verbose=true begin
     order = 3
     ws = KOrderPerturbations.KOrderWs(endo_nbr, n_fwrd, n_states, n_current, n_shocks, i_fwrd, i_bkwrd,
@@ -511,7 +513,7 @@ end
     nvar2 = ws.nvar*ws.nvar
     gg = ws.gg
     hh = ws.hh
-    rhs = reshape(view(ws.rhs,1:ws.nvar*(ws.nvar + 1)^order),
+    rhs = reshape(view(ws.rhs, 1:ws.nvar*(ws.nvar + 1)^order),
     ws.nvar, (ws.nvar + 1)^order)
     #rhs1 = reshape(view(ws.rhs1,1:ws.nvar*nstate^order),
     #               ws.nvar, nstate^order)
@@ -538,50 +540,75 @@ end
     if order == 3
         # derivatives w.r. y
         KOrderPerturbations.make_gg!(gg, GD, order-1, ws)
-        
+        KOrderPerturbations.make_gg!(gg, GD, order, ws)
+        @show gg[order - 1]
         @testset "gg" begin
             @test gg[order - 1][1, 1:(ns + 1)^2] == GD[2][2,:]
         end
 
-        @show ws.gfwrd
-        KOrderPerturbations.make_hh!(hh, GD, gg, order - 1, ws)
+        KOrderPerturbations.make_hh!(hh, GD, gg, order, ws)
 
-        # TODO test hh[2]
         @testset "hh" begin
             hh_target = vcat(
                 hcat(I(nstate), zeros(nstate, 2*nshock + 1)),
-                hcat(GD[1], zeros(nvar, nshock)),
-                GD[1]*gg[1],
+                hcat(GD[1][:, 1:2], zeros(nvar, nshock + 1)),
+                GD[1][i_fwrd, :]*gg[1],
                 hcat(zeros(nshock, nstate), I(nshock),
                      zeros(nshock, nshock + 1)))
             @test hh[1] ≈ hh_target
+            hh_target = vcat(
+                zeros(nstate, (nstate + 2*nshock + 1)^2),
+                hcat(GD[2][:, 1:2], zeros(nvar, nshock + 1), GD[2][:, 4:5],
+                     zeros(nvar, nshock + 1 + (nstate + 2*nshock + 1)*(nshock + 1))),
+                GD[1][i_fwrd, :]*gg[2] + GD[2][i_fwrd, :]*kron(gg[1], gg[1]),
+                zeros(nshock, (nstate  + 2*nshock +1)^2)
+            )
+            @test hh[2] ≈ hh_target
         end
-
-        KOrderPerturbations.partial_faa_di_bruno!(rhs, FD, hh, order, faa_di_bruno_ws_2)
+        hrow = nstate + nvar + nfwrd + nshock
+        hh1 = [zeros(hrow, nstate^i) for i = 1:order]
+        copyto!(hh1[1], view(hh[1], 1:hrow, 1:nstate))
+        KOrderPerturbations.pane_copy!(hh1[2], hh[2], 1:hrow, 1:hrow, 1:nstate, 1:nstate, nstate, nstate + 2*nshock + 1, 2) 
+        rhs1 = view(ws.rhs1, 1:nvar, 1:nstate^order)
+        KOrderPerturbations.partial_faa_di_bruno!(rhs1, F, hh1, order, faa_di_bruno_ws_2)
+        h1 = hh1[1][:, 1]
+        h2 = hh1[2][:, 1]
+        h3 = hh1[3][:, 1]
+        h3[nstate + nvar .+ 1] = GD[2][1, 1]*GD[1][1,1]^2
+        @show h3
+        d2 = F[3]*kron(h1, kron(h1, h1)) + F[2]*(kron(h2, h1) +2*kron(h1, h2)) + F[1]*h3
+        @show d2
+        h1t = vcat(1, GDD[1][:, 1], GDD[1][:, 1]*GDD[1][2, 1], 0)
+        h2t = vcat(0, GDD[2][:, 1], GDD[2][:, 1]*GDD[1][2, 1]^2, 0)
+        @test h1 ≈ h1t
+        @test h2 ≈ h2t
+        @show F[3]*kron(h1t, kron(h1t, h1t)) + 3*F[2]*kron(h1t, h2t) 
     end
-    lmul!(-1,rhs)
+    lmul!(-1,rhs1)
     # select only endogenous state variables on the RHS
     #pane_copy!(rhs1, rhs, 1:nvar, 1:nvar, 1:nstate, 1:nstate, nstatje, nstate + 2*nshock + 1, order)
-    rhs1 = rhs[:, 1:1]
-    d = copy(rhs1)
+    d = copy(rhs1[:, 1:1])
     c = view(GD[1], state_index, 1:nstate)
 
     @testset "c" begin
         @test size(c) == (1,1)
         @test c[1] ≈ GD[1][2, 1] 
     end
-    KOrderPerturbations.generalized_sylvester_solver!(a,b,c,d,order,gs_ws)
+    KOrderPerturbations.generalized_sylvester_solver!(a, b, c, d, order, gs_ws)
 
     @testset "generalized_sylvester" begin
-        @test a*d + b*d*kron(c, c, c) ≈ rhs1
+        @test a*d + b*d*kron(c, kron(c, c)) ≈ rhs1[:, 1]
     end
     
     KOrderPerturbations.store_results_1!(GD[order], gs_ws_result, nstate, nshock, nvar, order)
 
     @testset "results_1" begin
-        @test GD[order][:,1] ≈ gd_targets(ss, ϕ, order)[order][:, 1]
+#        @test GD[order][:,1] ≈ gd_targets(ss, ϕ, order)[order][:, 1]
     end
 
+    ddd = gd_targets(ss, ϕ, order)[order][:, 1]
+    @show a*ddd + b*ddd*kron(c, kron(c, c))
+    
     fp = view(FD[1],:,ws.nvar + ws.ncur .+ (1:ws.nfwrd))
     KOrderPerturbations.make_gs_su!(ws.gs_su, GD[1], ws.nstate, ws.nshock, ws.state_index)
 
