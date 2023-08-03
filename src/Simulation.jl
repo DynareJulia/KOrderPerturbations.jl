@@ -51,9 +51,9 @@ end
 
 function simulate(GD, y0, ut, t_final, simWs)
     n = length(y0)
-    # output matrix to hold a simulated time-step per column
-    simulations = Matrix{Float64}(undef, n, t_final)
-    simulations[:, 1] = y0
+    # output vector to hold a simulation results
+    simulations = Vector{Vector{Float64}}(undef, t_final)
+    simulations[1] = y0
 
     y1 = simWs.y1
     y2 = simWs.y2
@@ -66,7 +66,7 @@ function simulate(GD, y0, ut, t_final, simWs)
     # Main.Infiltrator.@infiltrate
 
     for i in 2:t_final
-        y_state = simulations[simWs.state_index, i-1]
+        y_state = simulations[i-1][simWs.state_index]
         uti = ut[i]
 
         # y1 = gy*y_state + gu*ut[:, i]
@@ -81,7 +81,7 @@ function simulate(GD, y0, ut, t_final, simWs)
         # y2 += 2*gyu * (y_state ⊗ uti)
         mul!(y2, gyu, y_state ⊗ uti, 2, 1)
 
-        simulations[:, i] .= y1 .+ 0.5 .* y2
+        simulations[i] = y1 .+ 0.5 .* y2
     end
         return simulations
 end
