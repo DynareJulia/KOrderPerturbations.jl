@@ -67,8 +67,8 @@ function f_derivatives(ss, ϕ, order)
     if order > 2
         # w.r. y_{t+1}*x_{t+1}*x_{t+1}
         FD[3][1, 4*49 + 5*7 + 6] = -β*θ^2*exp(θ*xbar)
-        FD[3][1, 5*49 + 4*7 + 6] = FD[3][1, 4*49 + 5*7 + 5]
-        FD[3][1, 5*49 + 5*7 + 5] = FD[3][1, 4*49 + 5*7 + 5]
+        FD[3][1, 5*49 + 4*7 + 6] = FD[3][1, 4*49 + 5*7 + 6]
+        FD[3][1, 5*49 + 5*7 + 5] = FD[3][1, 4*49 + 5*7 + 6]
         # w.r. x_{t+1}*x_{t+1}*x_{t+1}
         FD[3][1, 5*49 + 5*7 + 6] = -β*θ^3*exp(θ*xbar)*(1 + ss[1])
     end
@@ -137,7 +137,7 @@ function gd_targets(ss, ϕ, order)
             # w.r. x_{t-1}*x_{t-1}*x_{t-1}
             GD[3][1, 1] = ρ^3 * GD[3][1, 9 + 3 + 2]
             # w.r. x_{t-1}*x_{t-1}*u_{t-1}
-            GD[3][1, 2] = ρ^3 * GD[3][1, 9 + 3 + 2]
+            GD[3][1, 2] = ρ^2 * GD[3][1, 9 + 3 + 2]
             GD[3][1, 3 + 1] = GD[3][1, 2]
             GD[3][1, 9 + 1] = GD[3][1, 2]
             # w.r. x_{t-1}*u_{t-1}*u_{t-1}
@@ -399,9 +399,6 @@ ss = steady_state(ϕ)
             @test b ≈ FD[1][:, 5:6]
         end
     end
-    rhs10 = F[2]*kron(hhh1, hhh1)
-    @show rhs10
-    @show rhs[:, 1]
     lmul!(-1,rhs)
     # select only endogenous state variables on the RHS
     #pane_copy!(rhs1, rhs, 1:nvar, 1:nvar, 1:nstate, 1:nstate, nstatje, nstate + 2*nshock + 1, order)
@@ -482,7 +479,6 @@ ss = steady_state(ϕ)
     gu_u = GD[2][:, 5]
     fyp_yp = [ FD[2][:, 4n + 5 : 4n + 6] FD[2][:, 5n + 5 : 5n + 6] ]
 
-    display(GD[2])
     @testset "second order" begin
         k = [1, 2, 5, 6]
         @test GD[2][:, k] ≈ gd_targets(ss, ϕ, 2)[2][:, k]
@@ -502,7 +498,7 @@ end
     n = n_states + n_current + n_fwrd + n_shocks
     F = [zeros(endo_nbr, n^i) for i = 1:order]
 
-    KOrderPerturbations.make_compact_f!(F, FD, 2, ws)
+    KOrderPerturbations.make_compact_f!(F, FD, order, ws)
 
     GD = g_derivatives(ss, ϕ, order)
     GDD = gd_targets(ss, ϕ, order)
@@ -541,7 +537,6 @@ end
         # derivatives w.r. y
         KOrderPerturbations.make_gg!(gg, GD, order-1, ws)
         KOrderPerturbations.make_gg!(gg, GD, order, ws)
-        @show gg[order - 1]
         @testset "gg" begin
             @test gg[order - 1][1, 1:(ns + 1)^2] == GD[2][2,:]
         end
@@ -570,19 +565,8 @@ end
         copyto!(hh1[1], view(hh[1], 1:hrow, 1:nstate))
         KOrderPerturbations.pane_copy!(hh1[2], hh[2], 1:hrow, 1:hrow, 1:nstate, 1:nstate, nstate, nstate + 2*nshock + 1, 2) 
         rhs1 = view(ws.rhs1, 1:nvar, 1:nstate^order)
+        fill!(rhs1, 0.0)
         KOrderPerturbations.partial_faa_di_bruno!(rhs1, F, hh1, order, faa_di_bruno_ws_2)
-        h1 = hh1[1][:, 1]
-        h2 = hh1[2][:, 1]
-        h3 = hh1[3][:, 1]
-        h3[nstate + nvar .+ 1] = GD[2][1, 1]*GD[1][1,1]^2
-        @show h3
-        d2 = F[3]*kron(h1, kron(h1, h1)) + F[2]*(kron(h2, h1) +2*kron(h1, h2)) + F[1]*h3
-        @show d2
-        h1t = vcat(1, GDD[1][:, 1], GDD[1][:, 1]*GDD[1][2, 1], 0)
-        h2t = vcat(0, GDD[2][:, 1], GDD[2][:, 1]*GDD[1][2, 1]^2, 0)
-        @test h1 ≈ h1t
-        @test h2 ≈ h2t
-        @show F[3]*kron(h1t, kron(h1t, h1t)) + 3*F[2]*kron(h1t, h2t) 
     end
     lmul!(-1,rhs1)
     # select only endogenous state variables on the RHS
@@ -595,7 +579,6 @@ end
         @test c[1] ≈ GD[1][2, 1] 
     end
     KOrderPerturbations.generalized_sylvester_solver!(a, b, c, d, order, gs_ws)
-
     @testset "generalized_sylvester" begin
         @test a*d + b*d*kron(c, kron(c, c)) ≈ rhs1[:, 1]
     end
@@ -603,12 +586,9 @@ end
     KOrderPerturbations.store_results_1!(GD[order], gs_ws_result, nstate, nshock, nvar, order)
 
     @testset "results_1" begin
-#        @test GD[order][:,1] ≈ gd_targets(ss, ϕ, order)[order][:, 1]
+        @test GD[order][:,1] ≈ gd_targets(ss, ϕ, order)[order][:, 1]
     end
 
-    ddd = gd_targets(ss, ϕ, order)[order][:, 1]
-    @show a*ddd + b*ddd*kron(c, kron(c, c))
-    
     fp = view(FD[1],:,ws.nvar + ws.ncur .+ (1:ws.nfwrd))
     KOrderPerturbations.make_gs_su!(ws.gs_su, GD[1], ws.nstate, ws.nshock, ws.state_index)
 
