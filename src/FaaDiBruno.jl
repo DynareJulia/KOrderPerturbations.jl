@@ -104,7 +104,6 @@ function partial_faa_di_bruno!(dfg::AbstractArray{Float64}, f::Array{Matrix{Floa
     elseif order == 2
         a_mul_kron_b!(dfg, f[2], g[1], 2, ws.work1, ws.work2)
     else
-        @show ws.recipes[order]
         for i in 1:order
             apply_recipes!(dfg, ws.recipes[order][i], f[i], g, order, ws)
         end
@@ -127,14 +126,12 @@ function apply_recipes!(dfg::AbstractArray{Float64}, recipes::tatuple, f::Abstra
         else
             a_mul_kron_b!(work1, f, g[recipes1], ws.work2)
         end
-        if n > 1
-            dims = (m, repeat([n], order)...)
-            work1_tensor = reshape(work1, dims)
-            dfg_tensor = reshape(dfg, dims)
-            for r in recipes2
-                dims1 = (1, r .+ 1...)
-                dfg_tensor .+= PermutedDimsArray(work1_tensor, dims1)
-            end
+        dims = (m, repeat([n], order)...)
+        work1_tensor = reshape(work1, dims)
+        dfg_tensor = reshape(dfg, dims)
+        for r in recipes2
+            dims1 = (1, r .+ 1...)
+            dfg_tensor .+= PermutedDimsArray(work1_tensor, dims1)
         end
     end
     return dfg
