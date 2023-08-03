@@ -666,7 +666,10 @@ solves (f^1_0 + f^1_+ gx)X + f^1_+ X (gx ⊗ ... ⊗ gx) = D
 
 
 """
-function k_order_solution!(g,f,moments,order,ws)
+function k_order_solution!(g, f_sparse, moments, order, ws)
+    make_compact_f!(ws.compact_f, f_sparse, order, ws)
+    f = ws.compact_f
+
     nstate = ws.nstate
     nshock = ws.nshock
     gg = ws.gg

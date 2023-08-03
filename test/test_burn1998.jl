@@ -451,13 +451,11 @@ ss = steady_state(ϕ)
         @test GD[2][:, [2, 4, 5]] ≈ GDD[2][:, [2, 4, 5]]
     end  
     
-    k2 = filter(! in(collect(8:7:49)), collect(8:49))
-    ff = [FD[1][:, 2:7], FD[2][:, k2]]
     fill!(ws.a, 0.0)
     ws1 = KOrderPerturbations.KOrderWs(endo_nbr, n_fwrd, n_states, n_current, n_shocks, i_fwrd, i_bkwrd,
     i_current , state_range, order)
 
-    KOrderPerturbations.k_order_solution!(GD, F, moments[1:order], order, ws1)
+    KOrderPerturbations.k_order_solution!(GD, FD, moments[1:order], order, ws1)
 
     n = size(FD[1], 2)
     ∑σσ = SDu^2
