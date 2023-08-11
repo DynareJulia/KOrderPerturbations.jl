@@ -57,7 +57,7 @@ function simulate(GD, y0, ut, t_final, simWs::SimulateWs)
     @assert length(ut) == t_final
     n = length(y0)
     # output vector to hold a simulation results
-    simulations = Vector{Vector{Float64}}(undef, t_final)
+    simulations = [Vector{Float64}(undef, n) for _ in 1:t_final]
     simulations[1] = y0
 
     y1 = simWs.y1
@@ -86,7 +86,7 @@ function simulate(GD, y0, ut, t_final, simWs::SimulateWs)
         # y2 += 2*gyu * (y_state ⊗ uti)
         mul!(y2, gyu, y_state ⊗ uti, 2, 1)
 
-        simulations[i] = y1 .+ 0.5 .* y2
+        simulations[i] .= y1 .+ 0.5 .* y2
     end
         return simulations
 end
