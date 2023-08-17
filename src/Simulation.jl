@@ -17,10 +17,8 @@ struct SimulateWs
     nshock::Int
     state_index::Vector{Int}
 
-    function SimulateWs(GD, n, solverWs::KOrderWs)
-    nstate = solverWs.nstate
-    nshock = solverWs.nshock
-    state_index = solverWs.state_index
+    function SimulateWs(GD, n, state_index, nshock)
+    nstate = length(state_index)
 
     n2 = nstate + nshock + 1
     K = reshape(1:n2*n2, n2, n2)
@@ -53,7 +51,7 @@ function simulate_run(GD, ut0, t_final, solverWs::KOrderWs)
     ut = [ randn(solverWs.nshock).*0.01 for i = 1:t_final ]
     ut[2][1] = ut0
     n = length(y0)
-    simWs = SimulateWs(GD, n, solverWs)
+    simWs = SimulateWs(GD, n, solverWs.state_index, solverWs.nshock)
     simulate(GD, y0, ut, t_final, simWs)
 end
 
@@ -62,7 +60,6 @@ function simulate(GD, y0, ut, t_final, simWs::SimulateWs)
     n = length(y0)
     # output vector to hold a simulation results
     simulations = [Vector{Float64}(undef, n) for _ in 1:t_final]
-    simulations[1] = y0
 
     y1 = simWs.y1
     y2 = simWs.y2
@@ -79,7 +76,7 @@ function simulate(GD, y0, ut, t_final, simWs::SimulateWs)
     y1 .= y0
     y1state .= view(y1, state_index)
     fill!(y2state, 0.0)
-    for i in 2:t_final
+    for i in 1:t_final
         uti = ut[i]
 
         # y1 = gy*y1_state + gu*ut[:, i]
@@ -100,5 +97,6 @@ function simulate(GD, y0, ut, t_final, simWs::SimulateWs)
         y1state .= view(y1, state_index)
         y2state .= view(y2, state_index)
     end
-        return simulations
+
+    return simulations
 end
