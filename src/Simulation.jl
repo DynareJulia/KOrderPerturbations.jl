@@ -1,4 +1,4 @@
-export SimulateWs, simulate
+export SimulateWs, simulate, simulate!
 
 ⊗(a,b) = kron(a,b)
 
@@ -55,11 +55,14 @@ function simulate_run(GD, ut0, t_final, solverWs::KOrderWs)
     simulate(GD, y0, ut, t_final, simWs)
 end
 
+# Allocating version of simulate!
 function simulate(GD, y0, ut, t_final, simWs::SimulateWs)
+    simulations = [Vector{Float64}(undef, length(y0)) for _ in 1:t_final]
+    simulate!(simulations, GD, y0, ut, t_final, simWs::SimulateWs)
+end
+
+function simulate!(simulations, GD, y0, ut, t_final, simWs::SimulateWs)
     @assert length(ut) == t_final
-    n = length(y0)
-    # output vector to hold a simulation results
-    simulations = [Vector{Float64}(undef, n) for _ in 1:t_final]
 
     y1 = simWs.y1
     y2 = simWs.y2
