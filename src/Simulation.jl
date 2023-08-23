@@ -73,6 +73,11 @@ function simulate(GD, y0, ut, t_final, simWs::SimulateWs)
     guu = simWs.guu
     state_index = simWs.state_index
 
+    # workspace for the kron! operations
+    y1s_kron_y1s = zeros(length(y1state)^2)
+    y1s_kron_u = zeros(length(y1state)*length(ut[1]))
+    u_kron_u = zeros(length(ut[1])^2)
+
     y1 .= y0
     y1state .= view(y1, state_index)
     fill!(y2state, 0.0)
@@ -83,15 +88,23 @@ function simulate(GD, y0, ut, t_final, simWs::SimulateWs)
         mul!(y1, gy, y1state)
         mul!(y1, gu, uti, 1, 1)
         
+        # initialize y2 calculation
         copy!(y2, gσσ)
+        
         # y2 += gy * y2_state
         mul!(y2, gy, y2state, 1, 1)
+        
         # y2 += gyy * (y1_state ⊗ y1_state)
-        mul!(y2, gyy, y1state ⊗ y1state, 1, 1)
+        kron!(y1s_kron_y1s, y1state, y1state)
+        mul!(y2, gyy, y1s_kron_y1s, 1, 1)
+        
         # y2 += gyy * (uti ⊗ uti)
-        mul!(y2, guu, uti ⊗ uti, 1, 1)
+        kron!(u_kron_u, uti, uti)
+        mul!(y2, guu, u_kron_u, 1, 1)
+        
         # y2 += 2*gyu * (y1_state ⊗ uti)
-        mul!(y2, gyu, y1state ⊗ uti, 2, 1)
+        kron!(y1s_kron_u, y1state, uti)
+        mul!(y2, gyu, y1s_kron_u, 2, 1)
 
         simulations[i] .= y1 .+ 0.5 .* y2
         y1state .= view(y1, state_index)
